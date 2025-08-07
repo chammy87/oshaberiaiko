@@ -12,7 +12,7 @@ const app = express();
 const PORT = process.env.PORT || 10000;
 
 // Stripe webhook用エンドポイント（必ずrawで受け取る）
-app.post("/webhook", express.raw({ type: "application/json" }), (req, res) => {
+app.post("/stripe-webhook", express.raw({ type: "application/json" }), (req, res) => {
   const sig = req.headers["stripe-signature"];
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
