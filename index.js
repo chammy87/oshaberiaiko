@@ -108,5 +108,4 @@ app.post("/create-checkout-session", async (req, res) => {
   }
 });
 
-app.get("/", (_, res) => res.send("OK"));
 app.listen(port, () => console.log(`Server on :${port}`));
