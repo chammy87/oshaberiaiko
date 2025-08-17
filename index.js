@@ -84,6 +84,13 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
 // 他のルートは raw の後で
 app.use(express.json());
 
+app.use(express.static("public"));
+
+// APIルート
+app.get("/api/hello", (req, res) => {
+  res.json({ message: "Hello from API" });
+});
+
 // チェックアウト・セッション（テスト用）
 app.post("/create-checkout-session", async (req, res) => {
   try {
