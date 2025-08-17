@@ -36,7 +36,6 @@
     .grid2{display:grid;grid-template-columns:1fr;gap:16px}
     @media (min-width:840px){.grid2{grid-template-columns:1.2fr .8fr}}
     .list{margin:0 0 0 18px;color:var(--muted)}
-    /* modal */
     dialog{width:min(860px,92vw);border:1px solid var(--border);border-radius:12px;padding:0}
     dialog::backdrop{background:rgba(0,0,0,.25)}
     .modal-head{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--border)}
@@ -59,7 +58,74 @@
   </header>
 
   <main>
-    <!-- （中略：他セクションはそのまま） -->
+    <section class="hero">
+      <div class="container grid2">
+        <div>
+          <h1 class="headline">ママのための、やさしいAIおしゃべり相手</h1>
+          <p class="sub">「おしゃべりあいこちゃん」は、子育てがちょっと孤独に感じるときに寄りそい、雑談・相談・気分転換を手伝うAIサービスです。24時間いつでも、LINEで気軽に話しかけてください。</p>
+          <div style="display:flex;gap:12px;margin-top:16px">
+            <a class="btn brand" href="#start">LINEで始める（準備中）</a>
+            <a class="btn" href="#features">できることを見る</a>
+          </div>
+          <p class="muted" style="margin-top:10px">※ 現在は本番公開準備中です（2025年8月時点）。</p>
+        </div>
+        <div class="kakomi">
+          <p style="margin:0 0 6px;font-weight:700">このページの目的</p>
+          <ul class="list">
+            <li>サービスの概要と提供者情報の公開</li>
+            <li>利用規約・プライバシーポリシーの明示</li>
+            <li>Stripe決済の事業者情報確認に対応</li>
+          </ul>
+          <p class="muted" style="margin-top:6px">審査・確認のための簡易LPです。順次アップデートします。</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="features" class="section">
+      <div class="container">
+        <h2 style="margin:0 0 12px">おしゃべりあいこちゃんでできること</h2>
+        <div class="cards">
+          <div class="card"><h3>やさしい雑談</h3><p>今日あったこと、うれしかったこと、ちょっとモヤっとしたこと。なんでも話してください。</p></div>
+          <div class="card"><h3>気分転換の提案</h3><p>3分でできる気分転換、簡単セルフケア、深呼吸リマインドなど。</p></div>
+          <div class="card"><h3>ちょこっと相談</h3><p>ママ友には話しにくい小さな悩みも、まずは言語化からサポートします。</p></div>
+          <div class="card"><h3>レシピお手伝い</h3><p>冷蔵庫の食材から作れるメニュー案を提案（関連ミニアプリ）。</p></div>
+          <div class="card"><h3>プレミアム（任意）</h3><p>会話回数UP、限定コラム、関連アプリ連携などを予定。</p></div>
+          <div class="card"><h3>24時間いつでも</h3><p>LINEからいつでも利用できます。返信が遅い時間は通知オフ推奨。</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="how" class="section">
+      <div class="container">
+        <h2 style="margin:0 0 12px">使い方（β）</h2>
+        <ol class="list">
+          <li>LINEで公式アカウントを友だち追加（公開準備中）</li>
+          <li>メニューから「おしゃべりを始める」をタップ</li>
+          <li>困ったら「ヘルプ」と入力で使い方表示</li>
+        </ol>
+        <p class="muted">※ 実装・公開状況により一部機能は順次提供となります。</p>
+      </div>
+    </section>
+
+    <section id="start" class="section">
+      <div class="container">
+        <h2 style="margin:0 0 12px">料金について</h2>
+        <p class="badge">β版</p>
+        <p class="muted">無料プランのほか、プレミアム（月額・任意）を準備中です。価格・特典は公開時にご案内します。</p>
+      </div>
+    </section>
+
+    <section id="faq" class="section">
+      <div class="container">
+        <h2 style="margin:0 0 12px">よくある質問</h2>
+        <details><summary>個人情報はどのように扱われますか？</summary>
+          <div class="muted">プライバシーポリシーに基づき、利用目的を限定し、適切な安全管理措置を講じます。詳細は本ページ下部のリンクからご確認ください。</div>
+        </details>
+        <details><summary>医療・法律など専門相談はできますか？</summary>
+          <div class="muted">本サービスは一般的な情報提供・雑談を目的としており、専門的な助言の提供は行いません。必要な場合は専門機関のご利用をご検討ください。</div>
+        </details>
+      </div>
+    </section>
 
     <section id="legal" class="section">
       <div class="container">
@@ -88,13 +154,88 @@
     </div>
   </footer>
 
-  <!-- （規約・プライバシー・特商法モーダルはそのまま） -->
+  <!-- 利用規約 -->
+  <dialog id="terms">
+    <div class="modal-head"><strong>利用規約</strong><button class="x" data-close>×</button></div>
+    <div class="modal-body">
+      <p class="muted">最終更新：2025年8月17日</p>
+      <ol>
+        <li><strong>本規約の適用</strong>　本規約は「おしゃべりあいこちゃん」（以下「本サービス」）の利用条件を定めるものです。</li>
+        <li><strong>禁止事項</strong>　法令・公序良俗に反する行為、第三者の権利侵害、過度なスパム行為等は禁止します。</li>
+        <li><strong>医療・法律等に関する免責</strong>　本サービスは一般的な情報提供・雑談を目的としており、専門的助言を提供しません。</li>
+        <li><strong>有料プラン</strong>　有料プランの内容・価格・決済条件は別途案内します。決済はStripeを利用します。</li>
+        <li><strong>利用停止</strong>　規約違反が認められる場合、当方は事前通知なく利用停止できるものとします。</li>
+        <li><strong>免責</strong>　当方は、利用により生じた損害について、故意または重過失がある場合を除き責任を負いません。</li>
+        <li><strong>規約の変更</strong>　必要に応じて本規約を変更する場合があります。変更後の規約は本サイトに掲載した時点で効力を生じます。</li>
+        <li><strong>準拠法・裁判管轄</strong>　本規約は日本法に準拠し、紛争は当方所在地を管轄する裁判所を第一審の専属的合意管轄とします。</li>
+      </ol>
+    </div>
+  </dialog>
+
+  <!-- プライバシーポリシー -->
+  <dialog id="privacy">
+    <div class="modal-head"><strong>プライバシーポリシー</strong><button class="x" data-close>×</button></div>
+    <div class="modal-body">
+      <p class="muted">最終更新：2025年8月17日</p>
+      <ol>
+        <li><strong>取得する情報</strong>　LINEアカウント情報、チャット内容、問い合わせ時のメール情報、決済関連の必要情報（Stripe経由）等。</li>
+        <li><strong>利用目的</strong>　本サービスの提供・品質向上、問い合わせ対応、課金・不正防止、法令遵守。</li>
+        <li><strong>第三者提供</strong>　法令に基づく場合を除き、本人同意なく第三者提供は行いません。</li>
+        <li><strong>外部委託</strong>　クラウドサービス（例：Render, Stripe）を利用する場合があります。各事業者のポリシーに従います。</li>
+        <li><strong>安全管理</strong>　アクセス制御、ログ管理、暗号化等の合理的な対策を講じます。</li>
+        <li><strong>個人情報の開示・訂正・削除</strong>　所定の手続により対応します。<a href="mailto:contact@oshaberiaiko.com">contact@oshaberiaiko.com</a> までご連絡ください。</li>
+        <li><strong>Cookie等</strong>　本サイトは利用状況の把握のためにCookie等を利用する場合があります。</li>
+        <li><strong>改定</strong>　本ポリシーは予告なく改定する場合があります。改定後は本サイトで告知します。</li>
+      </ol>
+    </div>
+  </dialog>
+
+  <!-- 特定商取引法表記 -->
+  <dialog id="tokusho">
+    <div class="modal-head"><strong>特定商取引法に基づく表記</strong><button class="x" data-close>×</button></div>
+    <div class="modal-body">
+      <p class="muted">最終更新：2025年8月17日</p>
+      <ul class="muted">
+        <li>販売事業者：おしゃべりあいこ（運営責任者：玻名城寿美）</li>
+        <li>所在地：請求時に遅滞なく開示（お問い合わせメールにて）</li>
+        <li>連絡先：contact@oshaberiaiko.com</li>
+        <li>販売価格：各プランページに表示</li>
+        <li>支払方法：クレジットカード（Stripe）</li>
+        <li>提供時期：決済完了後ただちに</li>
+        <li>返品・キャンセル：デジタルサービスの特性上、提供後の返品は不可。解約は次回更新日までに手続き。</li>
+      </ul>
+    </div>
+  </dialog>
 
   <script>
-    document.getElementById('y').textContent = new Date().getFullYear();
-    const openers = document.querySelectorAll('[data-open]');
-    openers.forEach(el=>el.addEventListener('click', (e)=>{e.preventDefault(); const id=el.getAttribute('data-open'); document.getElementById(id).showModal();}));
-    document.querySelectorAll('[data-close]').forEach(el=>el.addEventListener('click', ()=>{ el.closest('dialog').close(); }));
+    document.addEventListener("DOMContentLoaded", () => {
+      // 年号
+      const y = document.getElementById("y");
+      if (y) y.textContent = new Date().getFullYear();
+
+      // モーダルを開く
+      document.querySelectorAll("[data-open]").forEach((el) => {
+        el.addEventListener("click", (e) => {
+          e.preventDefault();
+          const id = el.getAttribute("data-open");
+          const dlg = document.getElementById(id);
+          if (!dlg || typeof dlg.showModal !== "function") {
+            // 未対応環境のフォールバック（個別ページに遷移したい場合は /terms.html 等を作成）
+            window.location.href = `/${id}.html`;
+            return;
+          }
+          dlg.showModal();
+        });
+      });
+
+      // モーダルを閉じる
+      document.querySelectorAll("[data-close]").forEach((el) => {
+        el.addEventListener("click", () => {
+          const d = el.closest("dialog");
+          if (d) d.close();
+        });
+      });
+    });
   </script>
 </body>
 </html>
