@@ -97,8 +97,8 @@ app.post("/create-checkout-session", async (req, res) => {
     const session = await stripe.checkout.sessions.create({
       mode: "subscription", // 単発なら "payment"
       line_items: [{ price: process.env.STRIPE_PRICE_ID, quantity: 1 }],
-      success_url: "https://example.com/success",
-      cancel_url: "https://example.com/cancel",
+      success_url: "https://www.oshaberiaiko.com/success",
+      cancel_url: "https://www.oshaberiaiko.com/cancel",
       metadata: { userId: req.body.userId || "demo-user" },
     });
     res.json({ url: session.url });
