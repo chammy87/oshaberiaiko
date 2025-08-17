@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>おしゃべりあいこちゃん｜子育てママのためのAIおしゃべり相手</title>
+  <meta name="description" content="おしゃべりあいこちゃんは、子育て中のママ向けのやさしいAIおしゃべりサービス。雑談・気分転換・ちょっとした相談まで24時間いつでも。LINEで簡単に始められます。" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root { --bg:#fff; --fg:#222; --muted:#636a7a; --brand:#2f6df6; --accent:#f6f7fb; --card:#ffffff; --border:#e8eaf0; }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:"Noto Sans JP",system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial,"Apple Color Emoji","Segoe UI Emoji";color:var(--fg);background:var(--bg);}
+    header{position:sticky;top:0;background:rgba(255,255,255,.8);backdrop-filter:saturate(180%) blur(8px);border-bottom:1px solid var(--border);z-index:50}
+    .container{max-width:960px;margin:0 auto;padding:0 16px}
+    .nav{display:flex;align-items:center;justify-content:space-between;height:64px}
+    .logo{display:flex;gap:8px;align-items:center;font-weight:700}
+    .pill{font-size:12px;background:#e9efff;color:#2f4db3;padding:4px 8px;border-radius:999px;margin-left:8px}
+    .btn{display:inline-block;padding:12px 16px;border-radius:12px;border:1px solid var(--border);text-decoration:none;color:var(--fg);background:#fff;font-weight:600}
+    .btn.brand{background:var(--brand);color:#fff;border-color:var(--brand)}
+    .btn.ghost{background:transparent}
+    .hero{padding:48px 0 24px;background:linear-gradient(180deg,#f9fbff 0%,#fff 70%)}
+    .headline{font-size:clamp(24px,4vw,36px);line-height:1.25;margin:0 0 12px;font-weight:800}
+    .sub{color:var(--muted);font-size:16px}
+    .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:28px 0}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px}
+    .card h3{margin:0 0 6px;font-size:15px}
+    .card p{margin:0;color:var(--muted);font-size:14px}
+    .section{padding:40px 0;border-top:1px solid var(--border)}
+    .kakomi{background:var(--accent);border:1px dashed var(--border);padding:12px;border-radius:12px}
+    footer{padding:24px 0;border-top:1px solid var(--border);font-size:14px;color:var(--muted)}
+    .links{display:flex;flex-wrap:wrap;gap:16px}
+    .links a{color:var(--muted)}
+    .badge{font-size:12px;padding:4px 8px;border-radius:8px;background:#eef2ff;color:#3340aa;border:1px solid #dfe6ff}
+    .grid2{display:grid;grid-template-columns:1fr;gap:16px}
+    @media (min-width:840px){.grid2{grid-template-columns:1.2fr .8fr}}
+    .list{margin:0 0 0 18px;color:var(--muted)}
+    /* modal */
+    dialog{width:min(860px,92vw);border:1px solid var(--border);border-radius:12px;padding:0}
+    dialog::backdrop{background:rgba(0,0,0,.25)}
+    .modal-head{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--border)}
+    .modal-body{padding:16px;max-height:70vh;overflow:auto}
+    .x{border:none;background:transparent;font-size:20px;cursor:pointer}
+    .muted{color:var(--muted)}
+    code{background:#f6f7fb;padding:2px 6px;border-radius:6px;border:1px solid #e8eaf0}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container nav">
+      <div class="logo">おしゃべりあいこちゃん <span class="pill">β</span></div>
+      <div class="links">
+        <a class="btn ghost" href="#how">使い方</a>
+        <a class="btn ghost" href="#faq">よくある質問</a>
+        <a class="btn brand" href="#start">LINEで始める（準備中）</a>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- （中略：他セクションはそのまま） -->
+
+    <section id="legal" class="section">
+      <div class="container">
+        <h2 style="margin:0 0 12px">事業者情報</h2>
+        <p class="muted">運営者：<strong>おしゃべりあいこ</strong><br>
+        （運営責任者：玻名城寿美）<br>
+        所在地：非公開（請求時開示）／ 連絡先：<a href="mailto:contact@oshaberiaiko.com">contact@oshaberiaiko.com</a><br>
+        サイト：<a href="https://www.oshaberiaiko.com">www.oshaberiaiko.com</a></p>
+        <div class="links" style="margin-top:8px">
+          <a href="#" data-open="terms">利用規約</a>
+          <a href="#" data-open="privacy">プライバシーポリシー</a>
+          <a href="#" data-open="tokusho">特定商取引法に基づく表記</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="container" style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap">
+      <div>© <span id="y"></span> Oshaberiaiko</div>
+      <div class="links">
+        <a href="#" data-open="terms">利用規約</a>
+        <a href="#" data-open="privacy">プライバシー</a>
+        <a href="#" data-open="tokusho">特商法表記</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- （規約・プライバシー・特商法モーダルはそのまま） -->
+
+  <script>
+    document.getElementById('y').textContent = new Date().getFullYear();
+    const openers = document.querySelectorAll('[data-open]');
+    openers.forEach(el=>el.addEventListener('click', (e)=>{e.preventDefault(); const id=el.getAttribute('data-open'); document.getElementById(id).showModal();}));
+    document.querySelectorAll('[data-close]').forEach(el=>el.addEventListener('click', ()=>{ el.closest('dialog').close(); }));
+  </script>
+</body>
+</html>
