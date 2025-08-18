@@ -20,10 +20,16 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
   apiVersion: "2023-10-16",
 });
 
-// --- Stripe Webhook（rawで受信・一番上に置く）---
+// --- Stripe Webhook（rawで受信・最上部に置く）---
 app.post("/webhook", express.raw({ type: "application/json" }), async (req, res) => {
   const sig = req.headers["stripe-signature"];
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
+
+  // Stripe以外（署名ヘッダのないアクセス）は静かに無視
+  if (!sig) {
+    console.log("🤷 署名なしの非Stripeアクセスを無視（/webhook）");
+    return res.status(200).end();
+  }
 
   let event;
   try {
@@ -43,6 +49,7 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
   }
 
   try {
+    // ② イベントごとの処理
     switch (event.type) {
       case "checkout.session.completed": {
         const session = event.data.object;
@@ -62,31 +69,30 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
       case "payment_intent.succeeded": {
         const pi = event.data.object;
         console.log(`💰 PaymentIntent成功: ${pi.id}, amount=${pi.amount}`);
-        // ここに領収書送信・分析ログ等を追加してOK
         break;
       }
 
-      // サブスク運用なら追加で有用：
+      // サブスクを運用するなら追加:
       // case "invoice.payment_succeeded":
       // case "customer.subscription.deleted":
     }
 
-    // ② イベントを処理済みにマーク
+    // ③ 処理済みマーク
     await seenRef.set({ processedAt: admin.firestore.FieldValue.serverTimestamp() });
-    res.json({ received: true });
+
+    return res.json({ received: true });
   } catch (err) {
     console.error("🛑 ハンドラ処理中エラー:", err);
-    // 5xxを返すとStripeが自動リトライしてくれます
-    res.status(500).end();
+    // 5xxを返すとStripeが自動リトライ
+    return res.status(500).end();
   }
 });
 
 // 他のルートは raw の後で
 app.use(express.json());
-
 app.use(express.static("public"));
 
-// APIルート
+// APIルート（任意）
 app.get("/api/hello", (req, res) => {
   res.json({ message: "Hello from API" });
 });
