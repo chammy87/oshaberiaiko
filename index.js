@@ -71,7 +71,26 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
         console.log(`💰 PaymentIntent成功: ${pi.id}, amount=${pi.amount}`);
         break;
       }
+case "payment_intent.payment_failed": {
+  const pi = event.data.object;
+  const reason = pi.last_payment_error?.message || "unknown";
+  console.log(`❌ PaymentIntent失敗: ${pi.id}, reason=${reason}`);
+  // ここで失敗通知やメトリクス送信なども可
+  break;
+}
 
+// （任意）
+case "invoice.payment_failed": {
+  const invoice = event.data.object;
+  console.log(`❌ 請求失敗: invoice ${invoice.id}, customer=${invoice.customer}`);
+  break;
+}
+
+case "checkout.session.expired": {
+  const s = event.data.object;
+  console.log(`⌛ Checkout期限切れ: ${s.id}`);
+  break;
+}
       // サブスクを運用するなら追加:
       // case "invoice.payment_succeeded":
       // case "customer.subscription.deleted":
