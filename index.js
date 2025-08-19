@@ -91,9 +91,34 @@ case "checkout.session.expired": {
   console.log(`⌛ Checkout期限切れ: ${s.id}`);
   break;
 }
-      // サブスクを運用するなら追加:
-      // case "invoice.payment_succeeded":
-      // case "customer.subscription.deleted":
+        // ★ 月次の定期課金が正常に支払われた
+      case "invoice.payment_succeeded": {
+        const inv = event.data.object; // type: Stripe.Invoice
+        const subId = inv.subscription;
+        const userId =
+          inv.metadata?.userId ||
+          (inv.lines?.data?.[0]?.metadata?.userId) || // 念のため
+          undefined;
+        console.log(`✅ 継続課金成功: invoice ${inv.id}, subscription=${subId}, amount=${inv.amount_paid}, userId=${userId || "N/A"}`);
+        // 必要ならここで「次回更新日」等をusersに保存してもOK
+        break;
+      }
+ 
+      // ★ 解約（サブスク終了）→ premium を落とす
+      case "customer.subscription.deleted": {
+        const sub = event.data.object; // type: Stripe.Subscription
+        const userId = sub.metadata?.userId;
+        console.log(`👋 退会: subscription ${sub.id}, userId=${userId || "N/A"}`);
+        if (userId) {
+          await db.collection("users").doc(userId).set({ premium: false }, { merge: true });
+        }
+        break;
+      }
+        
+      default: {
+    console.log(`ℹ️ 未処理イベント: ${event.type}`);
+    break;
+  }
     }
 
     // ③ 処理済みマーク
@@ -124,7 +149,11 @@ app.post("/create-checkout-session", async (req, res) => {
       line_items: [{ price: process.env.STRIPE_PRICE_ID, quantity: 1 }],
       success_url: "https://www.oshaberiaiko.com/success",
       cancel_url: "https://www.oshaberiaiko.com/cancel",
+      // セッションにも、作成される subscription にも userId を残す
       metadata: { userId: req.body.userId || "demo-user" },
+      subscription_data: {
+       metadata: { userId: req.body.userId || "demo-user" },
+     },
     });
     res.json({ url: session.url });
   } catch (e) {
