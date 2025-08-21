@@ -55,8 +55,30 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
         const session = event.data.object;
         const userId = session.metadata?.userId;
         if (userId) {
+          // 初回サイクルの次回更新日時を取得
+          let premiumUntilTs = null;
+          try {
+            if (session.mode === "subscription" && session.subscription) {
+              const sub =
+                typeof session.subscription === "string"
+                  ? await stripe.subscriptions.retrieve(session.subscription)
+                  : session.subscription; // まれにオブジェクトで来る場合に対応
+              if (sub?.current_period_end) {
+                premiumUntilTs = admin.firestore.Timestamp.fromDate(
+                  new Date(sub.current_period_end * 1000)
+                );
+              }
+            }
+          } catch (e) {
+            console.warn("⚠️ subscription取得に失敗:", e.message);
+          }
+
           await db.collection("users").doc(userId).set(
-            { premium: true, premiumSince: admin.firestore.FieldValue.serverTimestamp() },
+            {
+              premium: true,
+              premiumSince: admin.firestore.FieldValue.serverTimestamp(),
+              ...(premiumUntilTs ? { premiumUntil: premiumUntilTs } : {})
+            },
             { merge: true }
           );
           console.log(`🎉 Premium付与: ${userId} (session ${session.id})`);
@@ -66,65 +88,78 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
         break;
       }
 
+      case "invoice.payment_succeeded": {
+        const inv = event.data.object; // Stripe.Invoice
+        const userId =
+          inv.metadata?.userId ||
+          inv.subscription_details?.metadata?.userId ||
+          (inv.lines?.data?.[0]?.metadata?.userId) ||
+          undefined;
+
+        // 次回更新日の候補（lines[0].period.end が最優先）
+        const periodEndSec = inv.lines?.data?.[0]?.period?.end || inv.period_end;
+        if (userId && periodEndSec) {
+          const premiumUntilTs = admin.firestore.Timestamp.fromDate(new Date(periodEndSec * 1000));
+          await db.collection("users").doc(userId).set(
+            { premium: true, premiumUntil: premiumUntilTs },
+            { merge: true }
+          );
+        }
+        console.log(
+          `✅ 継続課金成功: invoice ${inv.id}, amount=${inv.amount_paid}, userId=${userId || "N/A"}, next=${periodEndSec || "N/A"}`
+        );
+        break;
+      }
+
       case "payment_intent.succeeded": {
         const pi = event.data.object;
         console.log(`💰 PaymentIntent成功: ${pi.id}, amount=${pi.amount}`);
         break;
       }
-case "payment_intent.payment_failed": {
-  const pi = event.data.object;
-  const reason = pi.last_payment_error?.message || "unknown";
-  console.log(`❌ PaymentIntent失敗: ${pi.id}, reason=${reason}`);
-  // ここで失敗通知やメトリクス送信なども可
-  break;
-}
 
-// （任意）
-case "invoice.payment_failed": {
-  const invoice = event.data.object;
-  console.log(`❌ 請求失敗: invoice ${invoice.id}, customer=${invoice.customer}`);
-  break;
-}
-
-case "checkout.session.expired": {
-  const s = event.data.object;
-  console.log(`⌛ Checkout期限切れ: ${s.id}`);
-  break;
-}
-        // ★ 月次の定期課金が正常に支払われた
-      case "invoice.payment_succeeded": {
-        const inv = event.data.object; // type: Stripe.Invoice
-        const subId = inv.subscription;
-        const userId =
-          inv.metadata?.userId ||
-          (inv.lines?.data?.[0]?.metadata?.userId) || // 念のため
-          undefined;
-        console.log(`✅ 継続課金成功: invoice ${inv.id}, subscription=${subId}, amount=${inv.amount_paid}, userId=${userId || "N/A"}`);
-        // 必要ならここで「次回更新日」等をusersに保存してもOK
+      case "payment_intent.payment_failed": {
+        const pi = event.data.object;
+        const reason = pi.last_payment_error?.message || "unknown";
+        console.log(`❌ PaymentIntent失敗: ${pi.id}, reason=${reason}`);
         break;
       }
- 
-      // ★ 解約（サブスク終了）→ premium を落とす
+
+      case "invoice.payment_failed": {
+        const invoice = event.data.object;
+        console.log(`❌ 請求失敗: invoice ${invoice.id}, customer=${invoice.customer}`);
+        break;
+      }
+
+      case "checkout.session.expired": {
+        const s = event.data.object;
+        console.log(`⌛ Checkout期限切れ: ${s.id}`);
+        break;
+      }
+
+      // ★ 解約（サブスク終了）→ premium を落とす＋期限クリア
       case "customer.subscription.deleted": {
-        const sub = event.data.object; // type: Stripe.Subscription
+        const sub = event.data.object; // Stripe.Subscription
         const userId = sub.metadata?.userId;
         console.log(`👋 退会: subscription ${sub.id}, userId=${userId || "N/A"}`);
         if (userId) {
-          await db.collection("users").doc(userId).set({ premium: false }, { merge: true });
+          await db.collection("users").doc(userId).set(
+            { premium: false, premiumUntil: null },
+            { merge: true }
+          );
         }
         break;
       }
-        
+
       default: {
-    console.log(`ℹ️ 未処理イベント: ${event.type}`);
-    break;
-  }
+        console.log(`ℹ️ 未処理イベント: ${event.type}`);
+        break;
+      }
     }
 
     // ③ 処理済みマーク
     await seenRef.set({ processedAt: admin.firestore.FieldValue.serverTimestamp() });
-
     return res.json({ received: true });
+
   } catch (err) {
     console.error("🛑 ハンドラ処理中エラー:", err);
     // 5xxを返すとStripeが自動リトライ
@@ -144,16 +179,15 @@ app.get("/api/hello", (req, res) => {
 // チェックアウト・セッション（テスト用）
 app.post("/create-checkout-session", async (req, res) => {
   try {
+    const userId = req.body.userId || "demo-user";
     const session = await stripe.checkout.sessions.create({
       mode: "subscription", // 単発なら "payment"
       line_items: [{ price: process.env.STRIPE_PRICE_ID, quantity: 1 }],
       success_url: "https://www.oshaberiaiko.com/success",
       cancel_url: "https://www.oshaberiaiko.com/cancel",
       // セッションにも、作成される subscription にも userId を残す
-      metadata: { userId: req.body.userId || "demo-user" },
-      subscription_data: {
-       metadata: { userId: req.body.userId || "demo-user" },
-     },
+      metadata: { userId },
+      subscription_data: { metadata: { userId } },
     });
     res.json({ url: session.url });
   } catch (e) {
