@@ -3,11 +3,45 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>決済が完了しました｜おしゃべりあいこちゃん</title>
+  <title>決済完了｜おしゃべりあいこちゃん</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    body{font-family:"Noto Sans JP",system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial;margin:0;color:#222}
+    .wrap{max-width:720px;margin:0 auto;padding:24px 16px}
+    .card{border:1px solid #e8eaf0;border-radius:14px;padding:16px;background:#fff}
+    h1{font-size:22px;margin:0 0 12px}
+    .muted{color:#636a7a}
+    a.btn{display:inline-block;padding:12px 16px;border-radius:12px;border:1px solid #e8eaf0;text-decoration:none;color:#222;font-weight:600}
+    .brand{background:#2f6df6;color:#fff;border-color:#2f6df6}
+    .row{display:flex;gap:12px;flex-wrap:wrap;margin-top:12px}
+  </style>
 </head>
-<body style="font-family:sans-serif;max-width:600px;margin:40px auto;padding:0 16px;line-height:1.6">
-  <h1>ご利用ありがとうございます！</h1>
-  <p>決済が正常に完了しました。プレミアム機能の反映まで少しお待ちください。</p>
-  <p><a href="/" style="color:#2f6df6;text-decoration:none">← トップへ戻る</a></p>
+<body>
+  <div class="wrap">
+    <h1>ご利用ありがとうございます 🎉</h1>
+    <div class="card">
+      <p>決済が正常に完了しました。マイページでプレミアムの状態をご確認ください。</p>
+      <p id="note" class="muted">※ 反映まで数秒〜数十秒かかることがあります。</p>
+      <div class="row">
+        <a id="toMy" class="btn brand" href="#">マイページを開く</a>
+        <a class="btn" href="/">トップへ戻る</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(location.search);
+    const userId = params.get("userId");
+    const toMy = document.getElementById("toMy");
+    const note = document.getElementById("note");
+
+    if (userId) {
+      toMy.href = `/mypage.html?userId=${encodeURIComponent(userId)}`;
+    } else {
+      toMy.remove();
+      note.textContent = "ユーザーIDが見つかりませんでした。トップからやり直してください。";
+    }
+  </script>
 </body>
 </html>
