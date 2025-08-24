@@ -205,11 +205,12 @@ app.get("/api/user/:id", async (req, res) => {
 app.post("/create-checkout-session", async (req, res) => {
   try {
     const userId = req.body.userId || "demo-user";
+    const base = "https://www.oshaberiaiko.com";
     const session = await stripe.checkout.sessions.create({
       mode: "subscription", // 単発なら "payment"
       line_items: [{ price: process.env.STRIPE_PRICE_ID, quantity: 1 }],
-      success_url: "https://www.oshaberiaiko.com/success",
-      cancel_url: "https://www.oshaberiaiko.com/cancel",
+      success_url: `${base}/success.html?userId=${encodeURIComponent(userId)}`,
+      cancel_url:  `${base}/cancel.html?userId=${encodeURIComponent(userId)}`,
       // セッションにも、作成される subscription にも userId を残す
       metadata: { userId },
       subscription_data: { metadata: { userId } },
