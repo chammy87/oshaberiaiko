@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>マイページ｜おしゃべりあいこちゃん</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    body{font-family:"Noto Sans JP",system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial;color:#222;margin:0;background:#fff}
+    .container{max-width:720px;margin:0 auto;padding:24px 16px}
+    .card{border:1px solid #e8eaf0;border-radius:14px;padding:16px;background:#fff}
+    h1{font-size:22px;margin:0 0 12px}
+    .muted{color:#636a7a}
+    .badge{display:inline-block;background:#eef2ff;color:#3340aa;border:1px solid #dfe6ff;border-radius:999px;padding:4px 10px;font-size:12px}
+    .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+    .ok{color:#155724;background:#d4edda;border:1px solid #c3e6cb}
+    .ng{color:#721c24;background:#f8d7da;border:1px solid #f5c6cb}
+    a.btn{display:inline-block;padding:10px 14px;border-radius:12px;border:1px solid #e8eaf0;text-decoration:none;color:#222;background:#fff;font-weight:600}
+    .brand{background:#2f6df6;color:#fff;border-color:#2f6df6}
+    .mt{margin-top:12px}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>マイページ</h1>
+    <p class="muted">プレミアムの状態と次回更新日を確認できます。</p>
+
+    <div id="status" class="card">
+      読み込み中…
+    </div>
+
+    <div class="mt">
+      <a class="btn" href="/">← トップへ戻る</a>
+    </div>
+  </div>
+
+  <script>
+    // ユーザーIDをクエリから取得（例：?userId=test-user-demo）
+    const params = new URLSearchParams(location.search);
+    const userId = params.get("userId");
+
+    const fmtJP = (iso) => {
+      if (!iso) return null;
+      const d = new Date(iso);
+      // Asia/Tokyo で表示
+      return new Intl.DateTimeFormat("ja-JP", {
+        timeZone: "Asia/Tokyo",
+        year: "numeric", month: "long", day: "numeric",
+        hour: "2-digit", minute: "2-digit"
+      }).format(d);
+    };
+
+    const daysLeft = (iso) => {
+      if (!iso) return null;
+      const now = new Date();
+      const end = new Date(iso);
+      const ms = end - now;
+      return Math.ceil(ms / (1000 * 60 * 60 * 24)); // 小数は切り上げ
+    };
+
+    async function load() {
+      const box = document.getElementById("status");
+      if (!userId) {
+        box.innerHTML = `
+          <p class="ng" style="padding:8px 10px;border-radius:10px">userId が指定されていません。</p>
+          <p class="muted">URLの末尾に <code>?userId=あなたのID</code> を付けてアクセスしてください。</p>
+        `;
+        return;
+      }
+
+      try {
+        const res = await fetch(\`/api/user/\${encodeURIComponent(userId)}\`);
+        if (!res.ok) {
+          box.innerHTML = `
+            <p class="ng" style="padding:8px 10px;border-radius:10px">ユーザー情報が見つかりません（${res.status}）。</p>
+            <p class="muted">決済が完了しているか、userId が正しいかご確認ください。</p>
+          `;
+          return;
+        }
+        const data = await res.json();
+        if (!data.exists) {
+          box.innerHTML = `
+            <p class="ng" style="padding:8px 10px;border-radius:10px">ユーザーデータが存在しません。</p>
+          `;
+          return;
+        }
+
+        const untilTxt = fmtJP(data.premiumUntil);
+        const left = daysLeft(data.premiumUntil);
+
+        if (data.premium) {
+          box.innerHTML = `
+            <div class="row">
+              <span class="badge ok">プレミアム会員</span>
+            </div>
+            <p class="mt">有効期限：<strong>${untilTxt ? untilTxt : "取得中/未設定"}</strong></p>
+            ${left != null ? `<p class="muted">（あと ${left} 日）</p>` : ""}
+          `;
+        } else {
+          box.innerHTML = `
+            <div class="row">
+              <span class="badge ng">未加入</span>
+            </div>
+            <p class="mt muted">プレミアムは未加入です。</p>
+            <a class="btn brand mt" href="/create-checkout-session" onclick="return false;">加入する</a>
+            <p class="muted" style="margin-top:8px">加入ボタンはアプリ内からの導線に置き換える想定です。</p>
+          `;
+        }
+      } catch (e) {
+        console.error(e);
+        box.innerHTML = `
+          <p class="ng" style="padding:8px 10px;border-radius:10px">読み込み中にエラーが発生しました。</p>
+          <p class="muted">${e?.message || e}</p>
+        `;
+      }
+    }
+
+    load();
+  </script>
+</body>
+</html>
