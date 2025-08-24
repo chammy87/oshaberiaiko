@@ -176,6 +176,31 @@ app.get("/api/hello", (req, res) => {
   res.json({ message: "Hello from API" });
 });
 
+app.get("/api/user/:id", async (req, res) => {
+  try {
+    const id = req.params.id;
+    const snap = await db.collection("users").doc(id).get();
+    if (!snap.exists) {
+      return res.status(404).json({ exists: false });
+    }
+    const data = snap.data();
+
+    // Firestore Timestamp -> ISO文字列（null安全）
+    const toISO = (v) =>
+      v && typeof v.toDate === "function" ? v.toDate().toISOString() : v || null;
+
+    res.json({
+      exists: true,
+      premium: !!data.premium,
+      premiumSince: toISO(data.premiumSince),
+      premiumUntil: toISO(data.premiumUntil),
+    });
+  } catch (e) {
+    console.error("Get user error:", e);
+    res.status(500).json({ error: "internal_error" });
+  }
+});
+
 // チェックアウト・セッション（テスト用）
 app.post("/create-checkout-session", async (req, res) => {
   try {
