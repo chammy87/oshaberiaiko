@@ -100,12 +100,19 @@
         const leftHtml = (left != null) ? `<p class="muted">（あと ${left} 日）</p>` : "";
 
         if (data.premium) {
+          const cancelBadge = data.cancelPending
+            ? `<span class="badge ng" style="margin-left:8px;">解約予定</span>`
+            : "";
+          const cancelLine = data.cancelPending && data.cancelAt
+            ? `<p class="muted">解約予定日：${fmtJP(data.cancelAt)}</p>`
+            : "";
           box.innerHTML = `
-            <div class="row">
-              <span class="badge ok">プレミアム会員</span>
-            </div>
-            <p class="mt">有効期限：<strong>${untilTxt ? untilTxt : "取得中/未設定"}</strong></p>
-            ${leftHtml}
+          <div class="row">
+          <span class="badge ok">プレミアム会員</span>${cancelBadge}
+          </div>
+          <p class="mt">有効期限：<strong>${untilTxt ? untilTxt : "取得中/未設定"}</strong></p>
+          ${leftHtml}
+          ${cancelLine}
           `;
           if (manage) manage.href = `/billing-portal?userId=${encodeURIComponent(userId)}`;
           if (manageWrap) manageWrap.style.display = "block";
