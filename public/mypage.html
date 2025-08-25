@@ -40,34 +40,31 @@
   </div>
 
 <script>
-  // ユーザーIDをクエリから取得（例：?userId=test-user-demo）
   const params = new URLSearchParams(location.search);
   const userId = params.get("userId");
 
   const fmtJP = (iso) => {
     if (!iso) return null;
-    const d = new Date(iso);
     return new Intl.DateTimeFormat("ja-JP", {
       timeZone: "Asia/Tokyo",
       year: "numeric", month: "long", day: "numeric",
       hour: "2-digit", minute: "2-digit"
-    }).format(d);
+    }).format(new Date(iso));
   };
-
   const daysLeft = (iso) => {
     if (!iso) return null;
-    const now = new Date();
-    const end = new Date(iso);
-    const ms = end - now;
-    return Math.ceil(ms / (1000 * 60 * 60 * 24));
+    return Math.ceil((new Date(iso) - new Date()) / (1000*60*60*24));
   };
 
   async function load() {
     const box = document.getElementById("status");
     const manage = document.getElementById("manage");
+    const manageWrap = document.getElementById("manageWrap");
+
+    // 初期は隠す
+    manageWrap.style.display = "none";
 
     if (!userId) {
-      manage.style.display = "none";
       box.innerHTML = `
         <p class="ng" style="padding:8px 10px;border-radius:10px">userId が指定されていません。</p>
         <p class="muted">URLの末尾に <code>?userId=あなたのID</code> を付けてアクセスしてください。</p>
@@ -78,17 +75,14 @@
     try {
       const res = await fetch(`/api/user/${encodeURIComponent(userId)}`);
       if (!res.ok) {
-        manage.style.display = "none";
         box.innerHTML = `
           <p class="ng" style="padding:8px 10px;border-radius:10px">ユーザー情報が見つかりません（${res.status}）。</p>
           <p class="muted">決済が完了しているか、userId が正しいかご確認ください。</p>
         `;
         return;
       }
-
       const data = await res.json();
       if (!data.exists) {
-        manage.style.display = "none";
         box.innerHTML = `
           <p class="ng" style="padding:8px 10px;border-radius:10px">ユーザーデータが存在しません。</p>
         `;
@@ -107,27 +101,26 @@
           <p class="mt">有効期限：<strong>${untilTxt ? untilTxt : "取得中/未設定"}</strong></p>
           ${leftHtml}
         `;
-        // ポータルへのリンク有効化
+        // ← ここでポータルのURLをセット＆表示
         manage.href = `/billing-portal?userId=${encodeURIComponent(userId)}`;
-        manage.style.display = "inline-block";
+        manageWrap.style.display = "block";
       } else {
-        manage.style.display = "none";
         box.innerHTML = `
           <div class="row">
             <span class="badge ng">未加入</span>
           </div>
           <p class="mt muted">プレミアムは未加入です。</p>
           <a class="btn brand mt" href="/create-checkout-session" onclick="return false;">加入する</a>
-          <p class="muted" style="margin-top:8px">加入ボタンはアプリ内からの導線に置き換える想定です。</p>
         `;
+        manageWrap.style.display = "none";
       }
     } catch (e) {
       console.error(e);
-      manage.style.display = "none";
       box.innerHTML = `
         <p class="ng" style="padding:8px 10px;border-radius:10px">読み込み中にエラーが発生しました。</p>
         <p class="muted">${e?.message || e}</p>
       `;
+      manageWrap.style.display = "none";
     }
   }
 
