@@ -55,6 +55,11 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
         const session = event.data.object;
         const userId = session.metadata?.userId;
         if (userId) {
+          const customerId =
+            typeof session.customer === "string" ? session.customer : session.customer?.id || null;
+          const subscriptionId =
+            typeof session.subscription === "string" ? session.subscription : session.subscription?.id || null;
+          
           // 初回サイクルの次回更新日時を取得
           let premiumUntilTs = null;
           try {
@@ -77,7 +82,9 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
             {
               premium: true,
               premiumSince: admin.firestore.FieldValue.serverTimestamp(),
-              ...(premiumUntilTs ? { premiumUntil: premiumUntilTs } : {})
+              ...(premiumUntilTs ? { premiumUntil: premiumUntilTs } : {}),
+              ...(customerId ? { stripeCustomerId: customerId } : {}),
+              ...(subscriptionId ? { lastSubscriptionId: subscriptionId } : {}),
             },
             { merge: true }
           );
@@ -174,6 +181,32 @@ app.use(express.static("public"));
 // APIルート（任意）
 app.get("/api/hello", (req, res) => {
   res.json({ message: "Hello from API" });
+});
+
+// Billing Portal を開く（解約・支払い情報の管理ができる）
+app.get("/billing-portal", async (req, res) => {
+  try {
+    const userId = req.query.userId;
+    if (!userId) return res.status(400).send("missing userId");
+
+    const snap = await db.collection("users").doc(String(userId)).get();
+    if (!snap.exists) return res.status(404).send("user not found");
+
+    const { stripeCustomerId } = snap.data() || {};
+    if (!stripeCustomerId) return res.status(400).send("customer not linked");
+
+    const base = "https://www.oshaberiaiko.com";
+    const session = await stripe.billingPortal.sessions.create({
+      customer: stripeCustomerId,
+      return_url: `${base}/mypage.html?userId=${encodeURIComponent(userId)}`,
+    });
+
+    // そのままポータルへリダイレクト
+    res.redirect(302, session.url);
+  } catch (e) {
+    console.error("Portal error:", e);
+    res.status(500).send("portal_error");
+  }
 });
 
 app.get("/api/user/:id", async (req, res) => {
