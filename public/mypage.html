@@ -29,6 +29,10 @@
     <div id="status" class="card">
       読み込み中…
     </div>
+    
+    <div class="mt">
+      <a id="manage" class="btn brand" href="#">お支払い設定・解約</a>
+      </div>
 
     <div class="mt">
       <a class="btn" href="/">← トップへ戻る</a>
@@ -60,7 +64,10 @@
 
   async function load() {
     const box = document.getElementById("status");
+    const manage = document.getElementById("manage");
+
     if (!userId) {
+      manage.style.display = "none";
       box.innerHTML = `
         <p class="ng" style="padding:8px 10px;border-radius:10px">userId が指定されていません。</p>
         <p class="muted">URLの末尾に <code>?userId=あなたのID</code> を付けてアクセスしてください。</p>
@@ -71,14 +78,17 @@
     try {
       const res = await fetch(`/api/user/${encodeURIComponent(userId)}`);
       if (!res.ok) {
+        manage.style.display = "none";
         box.innerHTML = `
           <p class="ng" style="padding:8px 10px;border-radius:10px">ユーザー情報が見つかりません（${res.status}）。</p>
           <p class="muted">決済が完了しているか、userId が正しいかご確認ください。</p>
         `;
         return;
       }
+
       const data = await res.json();
       if (!data.exists) {
+        manage.style.display = "none";
         box.innerHTML = `
           <p class="ng" style="padding:8px 10px;border-radius:10px">ユーザーデータが存在しません。</p>
         `;
@@ -97,7 +107,11 @@
           <p class="mt">有効期限：<strong>${untilTxt ? untilTxt : "取得中/未設定"}</strong></p>
           ${leftHtml}
         `;
+        // ポータルへのリンク有効化
+        manage.href = `/billing-portal?userId=${encodeURIComponent(userId)}`;
+        manage.style.display = "inline-block";
       } else {
+        manage.style.display = "none";
         box.innerHTML = `
           <div class="row">
             <span class="badge ng">未加入</span>
@@ -109,6 +123,7 @@
       }
     } catch (e) {
       console.error(e);
+      manage.style.display = "none";
       box.innerHTML = `
         <p class="ng" style="padding:8px 10px;border-radius:10px">読み込み中にエラーが発生しました。</p>
         <p class="muted">${e?.message || e}</p>
