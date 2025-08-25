@@ -51,6 +51,32 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
   try {
     // ② イベントごとの処理
     switch (event.type) {
+        switch (event.type) {
+  case "customer.subscription.updated": {
+    const sub = event.data.object; // Stripe.Subscription
+    const userId = sub.metadata?.userId;
+    // 期末解約の予約か？
+    const willCancel = !!sub.cancel_at_period_end || !!sub.cancel_at;
+    const cancelAtSec = sub.cancel_at || sub.current_period_end || null;
+    if (userId) {
+      await db.collection("users").doc(userId).set(
+        {
+          // 解約予約の間は premium は true のまま
+          cancelPending: willCancel || null,
+          cancelAt: cancelAtSec
+            ? admin.firestore.Timestamp.fromDate(new Date(cancelAtSec * 1000))
+            : null,
+          // ついでに最新の有効期限も更新
+          ...(sub.current_period_end
+            ? { premiumUntil: admin.firestore.Timestamp.fromDate(new Date(sub.current_period_end * 1000)) }
+            : {}),
+        },
+        { merge: true }
+      );
+    }
+    console.log(`📝 subscription.updated: ${sub.id}, willCancel=${willCancel}, userId=${userId || "N/A"}`);
+    break;
+  }
       case "checkout.session.completed": {
         const session = event.data.object;
         const userId = session.metadata?.userId;
@@ -227,6 +253,8 @@ app.get("/api/user/:id", async (req, res) => {
       premium: !!data.premium,
       premiumSince: toISO(data.premiumSince),
       premiumUntil: toISO(data.premiumUntil),
+      cancelPending: !!data.cancelPending,
+      cancelAt: toISO(data.cancelAt),
     });
   } catch (e) {
     console.error("Get user error:", e);
