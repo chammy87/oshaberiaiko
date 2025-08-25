@@ -30,9 +30,9 @@
       読み込み中…
     </div>
     
-    <div class="mt">
-      <a id="manage" class="btn brand" href="#">お支払い設定・解約</a>
-      </div>
+    <div class="mt" id="manageWrap" style="display:none">
+  <a id="manage" class="btn brand" href="#">お支払い設定・解約</a>
+</div>
 
     <div class="mt">
       <a class="btn" href="/">← トップへ戻る</a>
@@ -40,91 +40,97 @@
   </div>
 
 <script>
-  const params = new URLSearchParams(location.search);
-  const userId = params.get("userId");
+  document.addEventListener('DOMContentLoaded', () => {
+    const params = new URLSearchParams(location.search);
+    const userId = params.get("userId");
 
-  const fmtJP = (iso) => {
-    if (!iso) return null;
-    return new Intl.DateTimeFormat("ja-JP", {
-      timeZone: "Asia/Tokyo",
-      year: "numeric", month: "long", day: "numeric",
-      hour: "2-digit", minute: "2-digit"
-    }).format(new Date(iso));
-  };
-  const daysLeft = (iso) => {
-    if (!iso) return null;
-    return Math.ceil((new Date(iso) - new Date()) / (1000*60*60*24));
-  };
+    const fmtJP = (iso) => {
+      if (!iso) return null;
+      return new Intl.DateTimeFormat("ja-JP", {
+        timeZone: "Asia/Tokyo",
+        year: "numeric", month: "long", day: "numeric",
+        hour: "2-digit", minute: "2-digit"
+      }).format(new Date(iso));
+    };
+    const daysLeft = (iso) => {
+      if (!iso) return null;
+      return Math.ceil((new Date(iso) - new Date()) / (1000*60*60*24));
+    };
 
-  async function load() {
-    const box = document.getElementById("status");
-    const manage = document.getElementById("manage");
-    const manageWrap = document.getElementById("manageWrap");
+    async function load() {
+      const box = document.getElementById("status");
+      const manage = document.getElementById("manage");
+      const manageWrap = document.getElementById("manageWrap");
 
-    // 初期は隠す
-    manageWrap.style.display = "none";
+      // ラッパーが無い場合でも落ちないように
+      if (manageWrap) manageWrap.style.display = "none";
 
-    if (!userId) {
-      box.innerHTML = `
-        <p class="ng" style="padding:8px 10px;border-radius:10px">userId が指定されていません。</p>
-        <p class="muted">URLの末尾に <code>?userId=あなたのID</code> を付けてアクセスしてください。</p>
-      `;
-      return;
-    }
-
-    try {
-      const res = await fetch(`/api/user/${encodeURIComponent(userId)}`);
-      if (!res.ok) {
+      if (!userId) {
+        if (manageWrap) manageWrap.style.display = "none";
         box.innerHTML = `
-          <p class="ng" style="padding:8px 10px;border-radius:10px">ユーザー情報が見つかりません（${res.status}）。</p>
-          <p class="muted">決済が完了しているか、userId が正しいかご確認ください。</p>
-        `;
-        return;
-      }
-      const data = await res.json();
-      if (!data.exists) {
-        box.innerHTML = `
-          <p class="ng" style="padding:8px 10px;border-radius:10px">ユーザーデータが存在しません。</p>
+          <p class="ng" style="padding:8px 10px;border-radius:10px">userId が指定されていません。</p>
+          <p class="muted">URLの末尾に <code>?userId=あなたのID</code> を付けてアクセスしてください。</p>
         `;
         return;
       }
 
-      const untilTxt = fmtJP(data.premiumUntil);
-      const left = daysLeft(data.premiumUntil);
-      const leftHtml = (left != null) ? `<p class="muted">（あと ${left} 日）</p>` : "";
+      try {
+        // 絶対URLにして解決失敗を避ける
+        const url = `${window.location.origin}/api/user/${encodeURIComponent(userId)}`;
+        const res = await fetch(url, { headers: { "Accept": "application/json" }, cache: "no-store" });
 
-      if (data.premium) {
+        if (!res.ok) {
+          if (manageWrap) manageWrap.style.display = "none";
+          box.innerHTML = `
+            <p class="ng" style="padding:8px 10px;border-radius:10px">ユーザー情報が見つかりません（${res.status}）。</p>
+            <p class="muted">決済が完了しているか、userId が正しいかご確認ください。</p>
+          `;
+          return;
+        }
+
+        const data = await res.json();
+        if (!data.exists) {
+          if (manageWrap) manageWrap.style.display = "none";
+          box.innerHTML = `<p class="ng" style="padding:8px 10px;border-radius:10px">ユーザーデータが存在しません。</p>`;
+          return;
+        }
+
+        const untilTxt = fmtJP(data.premiumUntil);
+        const left = daysLeft(data.premiumUntil);
+        const leftHtml = (left != null) ? `<p class="muted">（あと ${left} 日）</p>` : "";
+
+        if (data.premium) {
+          box.innerHTML = `
+            <div class="row">
+              <span class="badge ok">プレミアム会員</span>
+            </div>
+            <p class="mt">有効期限：<strong>${untilTxt ? untilTxt : "取得中/未設定"}</strong></p>
+            ${leftHtml}
+          `;
+          if (manage) manage.href = `/billing-portal?userId=${encodeURIComponent(userId)}`;
+          if (manageWrap) manageWrap.style.display = "block";
+        } else {
+          if (manageWrap) manageWrap.style.display = "none";
+          box.innerHTML = `
+            <div class="row">
+              <span class="badge ng">未加入</span>
+            </div>
+            <p class="mt muted">プレミアムは未加入です。</p>
+            <a class="btn brand mt" href="/create-checkout-session" onclick="return false;">加入する</a>
+          `;
+        }
+      } catch (e) {
+        console.error(e);
+        if (manageWrap) manageWrap.style.display = "none";
         box.innerHTML = `
-          <div class="row">
-            <span class="badge ok">プレミアム会員</span>
-          </div>
-          <p class="mt">有効期限：<strong>${untilTxt ? untilTxt : "取得中/未設定"}</strong></p>
-          ${leftHtml}
+          <p class="ng" style="padding:8px 10px;border-radius:10px">読み込み中にエラーが発生しました。</p>
+          <p class="muted">${e?.message || e}</p>
         `;
-        // ← ここでポータルのURLをセット＆表示
-        manage.href = `/billing-portal?userId=${encodeURIComponent(userId)}`;
-        manageWrap.style.display = "block";
-      } else {
-        box.innerHTML = `
-          <div class="row">
-            <span class="badge ng">未加入</span>
-          </div>
-          <p class="mt muted">プレミアムは未加入です。</p>
-          <a class="btn brand mt" href="/create-checkout-session" onclick="return false;">加入する</a>
-        `;
-        manageWrap.style.display = "none";
       }
-    } catch (e) {
-      console.error(e);
-      box.innerHTML = `
-        <p class="ng" style="padding:8px 10px;border-radius:10px">読み込み中にエラーが発生しました。</p>
-        <p class="muted">${e?.message || e}</p>
-      `;
-      manageWrap.style.display = "none";
     }
-  }
 
-  load();
+    load();
+  });
 </script>
 </body>
 </html>
