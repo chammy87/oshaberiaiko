@@ -2,7 +2,7 @@ import express from "express";
 import Stripe from "stripe";
 import dotenv from "dotenv";
 import OpenAI from "openai";
-import { system as aikoSystem } from "./Prompt.js"; // キャラクター設定
+import { system as aikoSystem } from "./prompts/Prompt.js";
 
 dotenv.config();
 
