@@ -4,11 +4,11 @@
   "main": "index.js",
   "type": "module",
   "dependencies": {
-    "express": "^4.19.2",
-    "stripe": "^14.0.0",
-    "dotenv": "^16.4.5",
-    "firebase-admin": "^12.0.0",
-    "openai": "^4.0.0",
-  　"@line/bot-sdk": "^9.0.0"
-  }
+  "@line/bot-sdk": "^9.0.0",   // バージョンは時期によって違います
+  "express": "^4.18.2",
+  "stripe": "^14.0.0",
+  "openai": "^4.0.0",
+  "firebase-admin": "^12.0.0",
+  "dotenv": "^16.0.0"
+}
 }
