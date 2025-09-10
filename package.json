@@ -4,7 +4,7 @@
   "main": "index.js",
   "type": "module",
   "dependencies": {
-  "@line/bot-sdk": "^9.0.0",   // バージョンは時期によって違います
+  "@line/bot-sdk": "^9.0.0",   
   "express": "^4.18.2",
   "stripe": "^14.0.0",
   "openai": "^4.0.0",
