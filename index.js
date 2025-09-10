@@ -2,7 +2,7 @@ import express from "express";
 import Stripe from "stripe";
 import dotenv from "dotenv";
 import OpenAI from "openai";
-import as line from "@line/bot-sdk";
+import * as line from "@line/bot-sdk";
 import { system as aikoSystem, templates as aikoTemplates } from "./Prompt.js";
 dotenv.config();
 
