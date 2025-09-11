@@ -401,5 +401,64 @@ app.post("/line/webhook", line.middleware(lineConfig), async (req, res) => {
     res.status(500).end();
   }
 });
+/* -------------------- LINE Webhook -------------------- */
+import line from "@line/bot-sdk";
+
+// LINE Bot 設定
+const lineConfig = {
+  channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN,
+  channelSecret: process.env.LINE_CHANNEL_SECRET,
+};
+const lineClient = new line.Client(lineConfig);
+
+// Webhook エンドポイント
+app.post("/line-webhook", line.middleware(lineConfig), async (req, res) => {
+  try {
+    const events = req.body.events;
+    const results = await Promise.all(
+      events.map(async (event) => {
+        if (event.type !== "message" || event.message.type !== "text") {
+          return null; // テキスト以外は無視
+        }
+
+        const userId = event.source.userId;
+        const userMessage = event.message.text;
+
+        // 会話 API に投げる
+        let replyText;
+        try {
+          const resp = await fetch(`${process.env.BASE_URL}/api/chat`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ userId, message: userMessage }),
+          });
+          const data = await resp.json();
+
+          if (resp.status === 429 && data.error === "free_limit_reached") {
+            // 無料上限に到達したとき
+            replyText =
+              "今日はもう3回おしゃべりしたから終了だよ🥲また明日ね！\nもっと話したい人向けに「プレミアム」もあるよ✨";
+          } else {
+            replyText = data.reply || "ごめんね、ちょっと考えすぎちゃった。";
+          }
+        } catch (e) {
+          console.error("Chat API error:", e);
+          replyText = "サーバーでエラーが起きちゃったみたい🙏 また試してみてね。";
+        }
+
+        // LINE に返信
+        return lineClient.replyMessage(event.replyToken, {
+          type: "text",
+          text: replyText,
+        });
+      })
+    );
+
+    res.json(results);
+  } catch (err) {
+    console.error("LINE webhook error:", err);
+    res.status(500).end();
+  }
+});
 
 app.listen(port, () => console.log(`Server on :${port}`));
