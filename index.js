@@ -1,3 +1,4 @@
+// index.js
 import express from "express";
 import Stripe from "stripe";
 import dotenv from "dotenv";
@@ -61,11 +62,7 @@ async function resolveUserIdFromInvoice(inv) {
   if (inv.metadata?.userId) return inv.metadata.userId;
   let sub = inv.subscription;
   if (typeof sub === "string") {
-    try {
-      sub = await stripe.subscriptions.retrieve(sub);
-    } catch {
-      sub = null;
-    }
+    try { sub = await stripe.subscriptions.retrieve(sub); } catch { sub = null; }
   }
   if (sub?.metadata?.userId) return sub.metadata.userId;
   const customerId =
@@ -92,7 +89,7 @@ function isPremiumFromData(data) {
   return until.getTime() > Date.now();
 }
 
-/* -------------------- 会話コア（共通） -------------------- */
+/* -------------------- 会話コア（LINE/HTTP 共通） -------------------- */
 async function chatWithAiko({ userId, text }) {
   // Firestore からユーザー状態
   const userSnap = await db.collection("users").doc(String(userId)).get();
@@ -108,7 +105,6 @@ async function chatWithAiko({ userId, text }) {
     const usageSnap = await usageRef.get();
     const used = usageSnap.exists ? usageSnap.data().count || 0 : 0;
     if (used >= LIMIT) {
-      // 上限超過メッセージ（LINE/HTTP 共通）
       const limitMsg =
         "今日はもう3回おしゃべりしたから終了だよ🥲 また明日ね！\n" +
         "もっと話したい人向けに「プレミアム」もあるよ✨";
@@ -116,15 +112,13 @@ async function chatWithAiko({ userId, text }) {
     }
   }
 
-  // 安全ワード軽検知（サーバー側ワードガード）
+  // 安全ワード軽検知
   const dangerWords = ["死にたい", "消えたい", "自殺", "傷つける", "虐待", "危ない", "首を", "窒息", "飛び降り", "殺す", "自傷"];
   const safetyTriggered = dangerWords.some((w) => text.includes(w));
 
   const opener =
     aikoTemplates?.openers?.length && !safetyTriggered
-      ? aikoTemplates.openers[
-          Math.floor(Math.random() * aikoTemplates.openers.length)
-        ]
+      ? aikoTemplates.openers[Math.floor(Math.random() * aikoTemplates.openers.length)]
       : null;
 
   const messages = [
@@ -269,12 +263,7 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
         break;
       }
 
-      case "payment_intent.succeeded":
-      case "payment_intent.payment_failed":
-      case "invoice.payment_failed":
-      case "checkout.session.expired":
       default:
-        // ログのみ
         break;
     }
 
@@ -283,6 +272,32 @@ app.post("/webhook", express.raw({ type: "application/json" }), async (req, res)
   } catch (err) {
     console.error("🛑 ハンドラ処理中エラー:", err);
     return res.status(500).end();
+  }
+});
+
+/* -------------------- LINE Webhook（※express.json の前に置くのが安全） -------------------- */
+app.post("/line-webhook", line.middleware(lineConfig), async (req, res) => {
+  try {
+    const events = req.body.events || [];
+    await Promise.all(
+      events.map(async (event) => {
+        if (event.type === "message" && event.message?.type === "text") {
+          const userId = event.source?.userId;
+          const text = event.message.text || "";
+          if (!userId || !text) return;
+
+          const result = await chatWithAiko({ userId, text });
+          await lineClient.replyMessage(event.replyToken, {
+            type: "text",
+            text: result.reply,
+          });
+        }
+      })
+    );
+    res.status(200).end();
+  } catch (e) {
+    console.error("LINE webhook error:", e);
+    res.status(500).end();
   }
 });
 
@@ -369,95 +384,6 @@ app.post("/api/chat", async (req, res) => {
   } catch (e) {
     console.error("Chat error:", e);
     return res.status(500).json({ error: "internal_error" });
-  }
-});
-
-/* -------------------- LINE Webhook -------------------- */
-// 署名検証は middleware が実施（※このルートは express.json() より前じゃなくてOK）
-app.post("/line/webhook", line.middleware(lineConfig), async (req, res) => {
-  try {
-    const events = req.body.events || [];
-    await Promise.all(
-      events.map(async (event) => {
-        // テキストメッセージのみ処理
-        if (event.type === "message" && event.message?.type === "text") {
-          const userId = event.source?.userId; // LINEのユーザーID
-          const text = event.message.text || "";
-          if (!userId || !text) return;
-
-          const result = await chatWithAiko({ userId, text });
-          await lineClient.replyMessage(event.replyToken, {
-            type: "text",
-            text: result.reply,
-          });
-        } else {
-          // それ以外は軽く応答しない（既読スルー）
-        }
-      })
-    );
-    res.status(200).end();
-  } catch (e) {
-    console.error("LINE webhook error:", e);
-    res.status(500).end();
-  }
-});
-/* -------------------- LINE Webhook -------------------- */
-import line from "@line/bot-sdk";
-
-// LINE Bot 設定
-const lineConfig = {
-  channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN,
-  channelSecret: process.env.LINE_CHANNEL_SECRET,
-};
-const lineClient = new line.Client(lineConfig);
-
-// Webhook エンドポイント
-app.post("/line-webhook", line.middleware(lineConfig), async (req, res) => {
-  try {
-    const events = req.body.events;
-    const results = await Promise.all(
-      events.map(async (event) => {
-        if (event.type !== "message" || event.message.type !== "text") {
-          return null; // テキスト以外は無視
-        }
-
-        const userId = event.source.userId;
-        const userMessage = event.message.text;
-
-        // 会話 API に投げる
-        let replyText;
-        try {
-          const resp = await fetch(`${process.env.BASE_URL}/api/chat`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ userId, message: userMessage }),
-          });
-          const data = await resp.json();
-
-          if (resp.status === 429 && data.error === "free_limit_reached") {
-            // 無料上限に到達したとき
-            replyText =
-              "今日はもう3回おしゃべりしたから終了だよ🥲また明日ね！\nもっと話したい人向けに「プレミアム」もあるよ✨";
-          } else {
-            replyText = data.reply || "ごめんね、ちょっと考えすぎちゃった。";
-          }
-        } catch (e) {
-          console.error("Chat API error:", e);
-          replyText = "サーバーでエラーが起きちゃったみたい🙏 また試してみてね。";
-        }
-
-        // LINE に返信
-        return lineClient.replyMessage(event.replyToken, {
-          type: "text",
-          text: replyText,
-        });
-      })
-    );
-
-    res.json(results);
-  } catch (err) {
-    console.error("LINE webhook error:", err);
-    res.status(500).end();
   }
 });
 
