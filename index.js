@@ -155,20 +155,23 @@ async function chatWithAiko({ userId, text }) {
 /* -------------------- Stripe Webhook (raw) -------------------- */
 app.post("/webhook", express.raw({ type: "application/json" }), async (req, res) => {
   const sig = req.headers["stripe-signature"];
-  const secret = process.env.STRIPE_WEBHOOK_SECRET;
-  if (!sig) {
-    console.log("🤷 署名なしの非Stripeアクセスを無視（/webhook）");
-    return res.status(200).end();
-  }
+const secrets = [
+  process.env.STRIPE_WEBHOOK_SECRET,      // ダッシュボード用（テスト/本番）
+  process.env.STRIPE_CLI_WEBHOOK_SECRET,  // CLIの `stripe listen` で表示された whsec
+].filter(Boolean);
 
-  let event;
+let event, verified = false;
+for (const s of secrets) {
   try {
-    event = stripe.webhooks.constructEvent(req.body, sig, secret);
-    console.log("✅ Webhook受信:", event.type);
-  } catch (err) {
-    console.error("❌ 署名検証エラー:", err.message);
-    return res.status(400).send(`Webhook Error: ${err.message}`);
-  }
+    event = stripe.webhooks.constructEvent(req.body, sig, s);
+    verified = true;
+    break;
+  } catch (_) {}
+}
+if (!verified) {
+  console.error("❌ 署名検証エラー: secrets 不一致");
+  return res.status(400).send("Webhook signature verification failed");
+}
 
   // idempotency
   const seenRef = db.collection("stripe_events").doc(event.id);
