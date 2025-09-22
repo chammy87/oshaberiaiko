@@ -282,6 +282,16 @@ app.post("/webhook",
     console.log("[WB] isBuffer:", Buffer.isBuffer(req.body), "len:", req.body?.length);
     console.log("[WB] content-type:", req.headers["content-type"]);
 
+    // ← ここを追加（先頭/末尾だけ出す安全なプレビュー）
+    const runtimeWhsec = process.env.STRIPE_WEBHOOK_SECRET || "";
+    console.log(
+      "[WB] env whsec preview:",
+      runtimeWhsec.startsWith("whsec_"),
+      "len=", runtimeWhsec.length,
+      "head=", runtimeWhsec.slice(0, 8),
+      "tail=", runtimeWhsec.slice(-4)
+    ); // ← ここで閉じる
+
     if (!sig) {
       console.warn("🚫 Non-Stripe access to /webhook");
       return res.status(403).send("forbidden");
