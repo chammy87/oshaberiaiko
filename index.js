@@ -62,7 +62,11 @@ async function resolveUserIdFromInvoice(inv) {
   if (inv.metadata?.userId) return inv.metadata.userId;
   let sub = inv.subscription;
   if (typeof sub === "string") {
-    try { sub = await stripe.subscriptions.retrieve(sub); } catch { sub = null; }
+    try {
+      sub = await stripe.subscriptions.retrieve(sub);
+    } catch {
+      sub = null;
+    }
   }
   if (sub?.metadata?.userId) return sub.metadata.userId;
   const customerId =
@@ -77,7 +81,7 @@ function jstTodayKey() {
   const y = jst.getUTCFullYear();
   const m = String(jst.getUTCMonth() + 1).padStart(2, "0");
   const d = String(jst.getUTCDate()).padStart(2, "0");
-  return `${y}${m}${d}`; // 例: 20250910
+  return `${y}${m}${d}`;
 }
 // Premium 判定
 function isPremiumFromData(data) {
@@ -85,18 +89,16 @@ function isPremiumFromData(data) {
   const p = !!data.premium;
   const until = data.premiumUntil?.toDate ? data.premiumUntil.toDate() : null;
   if (!p) return false;
-  if (!until) return true; // 期限未設定は true 扱い
+  if (!until) return true;
   return until.getTime() > Date.now();
 }
 
 /* -------------------- 会話コア（LINE/HTTP 共通） -------------------- */
 async function chatWithAiko({ userId, text }) {
-  // Firestore からユーザー状態
   const userSnap = await db.collection("users").doc(String(userId)).get();
   const userData = userSnap.exists ? userSnap.data() : {};
   const premium = isPremiumFromData(userData);
 
-  // 無料ユーザー: 1日3回まで
   const dayKey = jstTodayKey();
   const usageRef = db.collection("usage_daily").doc(`${userId}_${dayKey}`);
   const LIMIT = 3;
@@ -105,20 +107,35 @@ async function chatWithAiko({ userId, text }) {
     const usageSnap = await usageRef.get();
     const used = usageSnap.exists ? usageSnap.data().count || 0 : 0;
     if (used >= LIMIT) {
-      const limitMsg =
-        "今日はもう3回おしゃべりしたから終了だよ🥲 また明日ね！\n" +
-        "もっと話したい人向けに「プレミアム」もあるよ✨";
-      return { reply: limitMsg, premium: false, limited: true };
+      return {
+        reply:
+          "今日はもう3回おしゃべりしたから終了だよ🥲 また明日ね！\nもっと話したい人向けに「プレミアム」もあるよ✨",
+        premium: false,
+        limited: true,
+      };
     }
   }
 
-  // 安全ワード軽検知
-  const dangerWords = ["死にたい", "消えたい", "自殺", "傷つける", "虐待", "危ない", "首を", "窒息", "飛び降り", "殺す", "自傷"];
+  const dangerWords = [
+    "死にたい",
+    "消えたい",
+    "自殺",
+    "傷つける",
+    "虐待",
+    "危ない",
+    "首を",
+    "窒息",
+    "飛び降り",
+    "殺す",
+    "自傷",
+  ];
   const safetyTriggered = dangerWords.some((w) => text.includes(w));
 
   const opener =
     aikoTemplates?.openers?.length && !safetyTriggered
-      ? aikoTemplates.openers[Math.floor(Math.random() * aikoTemplates.openers.length)]
+      ? aikoTemplates.openers[
+          Math.floor(Math.random() * aikoTemplates.openers.length)
+        ]
       : null;
 
   const messages = [
@@ -127,16 +144,15 @@ async function chatWithAiko({ userId, text }) {
     { role: "user", content: text },
   ];
 
-  // OpenAI
   const completion = await openai.chat.completions.create({
     model: "gpt-4o-mini",
     messages,
     max_tokens: premium ? 400 : 220,
     temperature: safetyTriggered ? 0.2 : 0.8,
   });
-  const reply = completion.choices?.[0]?.message?.content?.trim() || "……";
+  const reply =
+    completion.choices?.[0]?.message?.content?.trim() || "……";
 
-  // 無料ユーザーなら使用回数 +1
   if (!premium) {
     await usageRef.set(
       {
@@ -152,133 +168,143 @@ async function chatWithAiko({ userId, text }) {
   return { reply, premium, limited: false };
 }
 
-/* -------------------- Stripe Webhook (raw) -------------------- */
+/* -------------------- Stripe 共通イベント処理 -------------------- */
+async function handleStripeEvent(event) {
+  switch (event.type) {
+    case "customer.subscription.updated": {
+      const sub = event.data.object;
+      const userId = await resolveUserIdFromSub(sub);
+      const willCancel = !!sub.cancel_at_period_end || !!sub.cancel_at;
+      const cancelAtSec = sub.cancel_at || sub.current_period_end || null;
+      if (userId) {
+        await db.collection("users").doc(userId).set(
+          {
+            cancelPending: willCancel || null,
+            cancelAt: tsFromSec(cancelAtSec),
+            ...(sub.current_period_end
+              ? { premiumUntil: tsFromSec(sub.current_period_end) }
+              : {}),
+          },
+          { merge: true }
+        );
+      }
+      break;
+    }
+    case "checkout.session.completed": {
+      const session = event.data.object;
+      const userId = session.metadata?.userId;
+      if (userId) {
+        const customerId =
+          typeof session.customer === "string"
+            ? session.customer
+            : session.customer?.id || null;
+        const subscriptionId =
+          typeof session.subscription === "string"
+            ? session.subscription
+            : session.subscription?.id || null;
+
+        let premiumUntilTs = null;
+        try {
+          if (session.mode === "subscription" && session.subscription) {
+            const sub =
+              typeof session.subscription === "string"
+                ? await stripe.subscriptions.retrieve(session.subscription)
+                : session.subscription;
+            if (sub?.current_period_end)
+              premiumUntilTs = tsFromSec(sub.current_period_end);
+          }
+        } catch (e) {
+          console.warn("⚠️ subscription取得失敗:", e.message);
+        }
+
+        await db.collection("users").doc(userId).set(
+          {
+            premium: true,
+            premiumSince: admin.firestore.FieldValue.serverTimestamp(),
+            ...(premiumUntilTs ? { premiumUntil: premiumUntilTs } : {}),
+            ...(customerId ? { stripeCustomerId: customerId } : {}),
+            ...(subscriptionId ? { lastSubscriptionId: subscriptionId } : {}),
+            cancelPending: null,
+            cancelAt: null,
+          },
+          { merge: true }
+        );
+      }
+      break;
+    }
+    case "invoice.payment_succeeded": {
+      const inv = event.data.object;
+      const userId = await resolveUserIdFromInvoice(inv);
+      const periodEndSec =
+        inv?.lines?.data?.[0]?.period?.end || inv?.period_end || null;
+      if (userId && periodEndSec) {
+        await db.collection("users").doc(userId).set(
+          { premium: true, premiumUntil: tsFromSec(periodEndSec) },
+          { merge: true }
+        );
+      }
+      break;
+    }
+    case "customer.subscription.deleted": {
+      const sub = event.data.object;
+      const userId = await resolveUserIdFromSub(sub);
+      if (userId) {
+        await db.collection("users").doc(userId).set(
+          {
+            premium: false,
+            premiumUntil: null,
+            cancelPending: null,
+            cancelAt: null,
+          },
+          { merge: true }
+        );
+      }
+      break;
+    }
+    default:
+      console.log(`ℹ️ 未処理イベント: ${event.type}`);
+      break;
+  }
+}
+
+/* -------------------- Stripe Webhook (本番/ダッシュボード) -------------------- */
 app.post("/webhook", express.raw({ type: "application/json" }), async (req, res) => {
   const sig = req.headers["stripe-signature"];
-const secrets = [
-  process.env.STRIPE_WEBHOOK_SECRET,      // ダッシュボード用（テスト/本番）
-  process.env.STRIPE_CLI_WEBHOOK_SECRET,  // CLIの `stripe listen` で表示された whsec
-].filter(Boolean);
-
-let event, verified = false;
-for (const s of secrets) {
+  const secret = process.env.STRIPE_WEBHOOK_SECRET;
   try {
-    event = stripe.webhooks.constructEvent(req.body, sig, s);
-    verified = true;
-    break;
-  } catch (_) {}
-}
-if (!verified) {
-  console.error("❌ 署名検証エラー: secrets 不一致");
-  return res.status(400).send("Webhook signature verification failed");
-}
-
-  // idempotency
-  const seenRef = db.collection("stripe_events").doc(event.id);
-  const seen = await seenRef.get();
-  if (seen.exists) {
-    console.log("↩️ 既に処理済み:", event.id);
-    return res.json({ received: true });
-  }
-
-  try {
-    switch (event.type) {
-      case "customer.subscription.updated": {
-        const sub = event.data.object;
-        const userId = await resolveUserIdFromSub(sub);
-        const willCancel = !!sub.cancel_at_period_end || !!sub.cancel_at;
-        const cancelAtSec = sub.cancel_at || sub.current_period_end || null;
-        if (userId) {
-          await db.collection("users").doc(userId).set(
-            {
-              cancelPending: willCancel || null,
-              cancelAt: tsFromSec(cancelAtSec),
-              ...(sub.current_period_end ? { premiumUntil: tsFromSec(sub.current_period_end) } : {}),
-            },
-            { merge: true }
-          );
-        } else {
-          console.warn("subscription.updated: userId not resolved", sub.id);
-        }
-        break;
-      }
-
-      case "checkout.session.completed": {
-        const session = event.data.object;
-        const userId = session.metadata?.userId;
-        if (userId) {
-          const customerId =
-            typeof session.customer === "string" ? session.customer : session.customer?.id || null;
-          const subscriptionId =
-            typeof session.subscription === "string" ? session.subscription : session.subscription?.id || null;
-
-          let premiumUntilTs = null;
-          try {
-            if (session.mode === "subscription" && session.subscription) {
-              const sub =
-                typeof session.subscription === "string"
-                  ? await stripe.subscriptions.retrieve(session.subscription)
-                  : session.subscription;
-              if (sub?.current_period_end) premiumUntilTs = tsFromSec(sub.current_period_end);
-            }
-          } catch (e) {
-            console.warn("⚠️ subscription取得失敗:", e.message);
-          }
-
-          await db.collection("users").doc(userId).set(
-            {
-              premium: true,
-              premiumSince: admin.firestore.FieldValue.serverTimestamp(),
-              ...(premiumUntilTs ? { premiumUntil: premiumUntilTs } : {}),
-              ...(customerId ? { stripeCustomerId: customerId } : {}),
-              ...(subscriptionId ? { lastSubscriptionId: subscriptionId } : {}),
-              cancelPending: null,
-              cancelAt: null,
-            },
-            { merge: true }
-          );
-        }
-        break;
-      }
-
-      case "invoice.payment_succeeded": {
-        const inv = event.data.object;
-        const userId = await resolveUserIdFromInvoice(inv);
-        const periodEndSec = inv?.lines?.data?.[0]?.period?.end || inv?.period_end || null;
-        if (userId && periodEndSec) {
-          await db.collection("users").doc(userId).set(
-            { premium: true, premiumUntil: tsFromSec(periodEndSec) },
-            { merge: true }
-          );
-        }
-        break;
-      }
-
-      case "customer.subscription.deleted": {
-        const sub = event.data.object;
-        const userId = await resolveUserIdFromSub(sub);
-        if (userId) {
-          await db.collection("users").doc(userId).set(
-            { premium: false, premiumUntil: null, cancelPending: null, cancelAt: null },
-            { merge: true }
-          );
-        }
-        break;
-      }
-
-      default:
-        break;
-    }
-
+    const event = stripe.webhooks.constructEvent(req.body, sig, secret);
+    res.status(200).send("ok"); // すぐ返答
+    const seenRef = db.collection("stripe_events").doc(event.id);
+    const seen = await seenRef.get();
+    if (seen.exists) return;
+    await handleStripeEvent(event);
     await seenRef.set({ processedAt: admin.firestore.FieldValue.serverTimestamp() });
-    return res.json({ received: true });
   } catch (err) {
-    console.error("🛑 ハンドラ処理中エラー:", err);
-    return res.status(500).end();
+    console.error("❌ 本番Webhook署名エラー:", err.message);
+    res.status(400).send("bad signature");
   }
 });
 
-/* -------------------- LINE Webhook（※express.json の前に置くのが安全） -------------------- */
+/* -------------------- Stripe Webhook (CLI専用) -------------------- */
+app.post("/webhook-cli", express.raw({ type: "application/json" }), async (req, res) => {
+  const sig = req.headers["stripe-signature"];
+  const secret = process.env.STRIPE_CLI_WEBHOOK_SECRET;
+  try {
+    const event = stripe.webhooks.constructEvent(req.body, sig, secret);
+    res.status(200).send("ok");
+    const seenRef = db.collection("stripe_events").doc(event.id);
+    const seen = await seenRef.get();
+    if (seen.exists) return;
+    console.log("✅ CLI Webhook受信:", event.type);
+    await handleStripeEvent(event);
+    await seenRef.set({ processedAt: admin.firestore.FieldValue.serverTimestamp() });
+  } catch (err) {
+    console.error("❌ CLI署名検証エラー:", err.message);
+    res.status(400).send("bad signature");
+  }
+});
+
+/* -------------------- LINE Webhook -------------------- */
 app.post("/line-webhook", line.middleware(lineConfig), async (req, res) => {
   try {
     const events = req.body.events || [];
@@ -288,7 +314,6 @@ app.post("/line-webhook", line.middleware(lineConfig), async (req, res) => {
           const userId = event.source?.userId;
           const text = event.message.text || "";
           if (!userId || !text) return;
-
           const result = await chatWithAiko({ userId, text });
           await lineClient.replyMessage(event.replyToken, {
             type: "text",
@@ -304,7 +329,7 @@ app.post("/line-webhook", line.middleware(lineConfig), async (req, res) => {
   }
 });
 
-/* -------------------- ここから通常のルート -------------------- */
+/* -------------------- 通常ルート -------------------- */
 app.use(express.json());
 app.use(express.static("public"));
 
@@ -312,10 +337,8 @@ app.get("/api/hello", (_req, res) => {
   res.json({ message: "Hello from API" });
 });
 
-// ヘルスチェック
 app.get("/", (_req, res) => res.send("OK"));
 
-// Billing Portal
 app.get("/billing-portal", async (req, res) => {
   try {
     const userId = req.query.userId;
@@ -337,7 +360,6 @@ app.get("/billing-portal", async (req, res) => {
   }
 });
 
-// マイページ用ユーザー状態
 app.get("/api/user/:id", async (req, res) => {
   try {
     const id = req.params.id;
@@ -360,7 +382,6 @@ app.get("/api/user/:id", async (req, res) => {
   }
 });
 
-// チェックアウト（テスト）
 app.post("/create-checkout-session", async (req, res) => {
   try {
     const userId = req.body.userId || "demo-user";
@@ -380,11 +401,11 @@ app.post("/create-checkout-session", async (req, res) => {
   }
 });
 
-// 会話API（HTTP）
 app.post("/api/chat", async (req, res) => {
   try {
     const { userId, message } = req.body || {};
-    if (!userId || !message) return res.status(400).json({ error: "missing userId or message" });
+    if (!userId || !message)
+      return res.status(400).json({ error: "missing userId or message" });
     const result = await chatWithAiko({ userId, text: message });
     if (result.limited) return res.status(429).json(result);
     return res.json(result);
