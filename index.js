@@ -272,24 +272,28 @@ async function handleStripeEvent(event) {
 
 // 本番/ダッシュボードのWebhook
 app.post("/webhook",
-  // ★ 生ボディ（Buffer）で受ける。ここが署名検証の肝
   express.raw({ type: "application/json" }),
   async (req, res) => {
     const sig = req.headers["stripe-signature"];
     const secret = process.env.STRIPE_WEBHOOK_SECRET;
 
-    // デバッグ用：本番では騒がしくならない程度に
-    // console.log("sig exists?", !!sig, "isBuffer?", Buffer.isBuffer(req.body), "len", req.body?.length);
-console.log("[WB] path=/webhook");
-console.log("[WB] sig header exists:", !!req.headers["stripe-signature"]);
-console.log("[WB] isBuffer:", Buffer.isBuffer(req.body), "len:", req.body?.length);
-console.log("[WB] content-type:", req.headers["content-type"]);
+    console.log("[WB] path=/webhook");
+    console.log("[WB] sig header exists:", !!sig);
+    console.log("[WB] isBuffer:", Buffer.isBuffer(req.body), "len:", req.body?.length);
+    console.log("[WB] content-type:", req.headers["content-type"]);
+
+    if (!sig) {
+      console.warn("🚫 Non-Stripe access to /webhook");
+      return res.status(403).send("forbidden");
+    }
+
     try {
       const event = stripe.webhooks.constructEvent(req.body, sig, secret);
-      // 先に受領OKを返す（Stripeの再送を防ぐ）
+
+      // Stripe へは 200 をすぐ返す
       res.status(200).send("ok");
 
-      // 冪等制御（同じイベントIDは一度だけ処理）
+      // 冪等チェック
       const seenRef = db.collection("stripe_events").doc(event.id);
       const seen = await seenRef.get();
       if (seen.exists) return;
@@ -298,18 +302,21 @@ console.log("[WB] content-type:", req.headers["content-type"]);
       await seenRef.set({ processedAt: admin.firestore.FieldValue.serverTimestamp() });
     } catch (err) {
       console.error("❌ 本番Webhook署名エラー:", err.message);
-      // 署名NGのときは 400 を返す
       if (!res.headersSent) res.status(400).send("bad signature");
     }
   }
 );
 
-// Stripe CLI専用のWebhook（listen→forward用）
+// Stripe CLI専用のWebhook
 app.post("/webhook-cli",
   express.raw({ type: "application/json" }),
   async (req, res) => {
     const sig = req.headers["stripe-signature"];
     const secret = process.env.STRIPE_CLI_WEBHOOK_SECRET;
+    if (!sig) {
+      console.warn("🚫 Non-Stripe access to /webhook-cli");
+      return res.status(403).send("forbidden");
+    }
     try {
       const event = stripe.webhooks.constructEvent(req.body, sig, secret);
       res.status(200).send("ok");
