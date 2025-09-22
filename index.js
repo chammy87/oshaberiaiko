@@ -280,7 +280,10 @@ app.post("/webhook",
 
     // デバッグ用：本番では騒がしくならない程度に
     // console.log("sig exists?", !!sig, "isBuffer?", Buffer.isBuffer(req.body), "len", req.body?.length);
-
+console.log("[WB] path=/webhook");
+console.log("[WB] sig header exists:", !!req.headers["stripe-signature"]);
+console.log("[WB] isBuffer:", Buffer.isBuffer(req.body), "len:", req.body?.length);
+console.log("[WB] content-type:", req.headers["content-type"]);
     try {
       const event = stripe.webhooks.constructEvent(req.body, sig, secret);
       // 先に受領OKを返す（Stripeの再送を防ぐ）
