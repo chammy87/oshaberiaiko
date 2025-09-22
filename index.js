@@ -4,11 +4,13 @@ import Stripe from "stripe";
 import dotenv from "dotenv";
 import OpenAI from "openai";
 import * as line from "@line/bot-sdk";
+import admin from "firebase-admin";
+
 import { system as aikoSystem, templates as aikoTemplates } from "./Prompt.js";
+
 dotenv.config();
 
-// === Firestore ===
-import admin from "firebase-admin";
+/* ======================== 初期化 ======================== */
 const serviceAccount = JSON.parse(
   Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT, "base64").toString("utf8")
 );
@@ -20,15 +22,12 @@ const db = admin.firestore();
 const app = express();
 const port = process.env.PORT || 10000;
 
-// === Stripe ===
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
   apiVersion: "2023-10-16",
 });
 
-// === OpenAI ===
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-// === LINE ===
 const lineConfig = {
   channelSecret: process.env.LINE_CHANNEL_SECRET,
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN,
@@ -37,7 +36,7 @@ const lineClient = new line.Client({
   channelAccessToken: lineConfig.channelAccessToken,
 });
 
-/* -------------------- ユーティリティ -------------------- */
+/* ======================== 共通ユーティリティ ======================== */
 const tsFromSec = (sec) =>
   sec ? admin.firestore.Timestamp.fromDate(new Date(sec * 1000)) : null;
 
@@ -93,7 +92,7 @@ function isPremiumFromData(data) {
   return until.getTime() > Date.now();
 }
 
-/* -------------------- 会話コア（LINE/HTTP 共通） -------------------- */
+/* ======================== 会話コア ======================== */
 async function chatWithAiko({ userId, text }) {
   const userSnap = await db.collection("users").doc(String(userId)).get();
   const userData = userSnap.exists ? userSnap.data() : {};
@@ -101,7 +100,7 @@ async function chatWithAiko({ userId, text }) {
 
   const dayKey = jstTodayKey();
   const usageRef = db.collection("usage_daily").doc(`${userId}_${dayKey}`);
-  const LIMIT = 3;
+  const LIMIT = 3; // 無料上限
 
   if (!premium) {
     const usageSnap = await usageRef.get();
@@ -168,7 +167,7 @@ async function chatWithAiko({ userId, text }) {
   return { reply, premium, limited: false };
 }
 
-/* -------------------- Stripe 共通イベント処理 -------------------- */
+/* ======================== Stripeイベント処理 ======================== */
 async function handleStripeEvent(event) {
   switch (event.type) {
     case "customer.subscription.updated": {
@@ -267,44 +266,67 @@ async function handleStripeEvent(event) {
   }
 }
 
-/* -------------------- Stripe Webhook (本番/ダッシュボード) -------------------- */
-app.post("/webhook", express.raw({ type: "application/json" }), async (req, res) => {
-  const sig = req.headers["stripe-signature"];
-  const secret = process.env.STRIPE_WEBHOOK_SECRET;
-  try {
-    const event = stripe.webhooks.constructEvent(req.body, sig, secret);
-    res.status(200).send("ok"); // すぐ返答
-    const seenRef = db.collection("stripe_events").doc(event.id);
-    const seen = await seenRef.get();
-    if (seen.exists) return;
-    await handleStripeEvent(event);
-    await seenRef.set({ processedAt: admin.firestore.FieldValue.serverTimestamp() });
-  } catch (err) {
-    console.error("❌ 本番Webhook署名エラー:", err.message);
-    res.status(400).send("bad signature");
-  }
-});
+/* ===========================================================
+   🚨 重要：Stripe Webhook は express.json() よりも前に定義
+   =========================================================== */
 
-/* -------------------- Stripe Webhook (CLI専用) -------------------- */
-app.post("/webhook-cli", express.raw({ type: "application/json" }), async (req, res) => {
-  const sig = req.headers["stripe-signature"];
-  const secret = process.env.STRIPE_CLI_WEBHOOK_SECRET;
-  try {
-    const event = stripe.webhooks.constructEvent(req.body, sig, secret);
-    res.status(200).send("ok");
-    const seenRef = db.collection("stripe_events").doc(event.id);
-    const seen = await seenRef.get();
-    if (seen.exists) return;
-    console.log("✅ CLI Webhook受信:", event.type);
-    await handleStripeEvent(event);
-    await seenRef.set({ processedAt: admin.firestore.FieldValue.serverTimestamp() });
-  } catch (err) {
-    console.error("❌ CLI署名検証エラー:", err.message);
-    res.status(400).send("bad signature");
-  }
-});
+// 本番/ダッシュボードのWebhook
+app.post("/webhook",
+  // ★ 生ボディ（Buffer）で受ける。ここが署名検証の肝
+  express.raw({ type: "application/json" }),
+  async (req, res) => {
+    const sig = req.headers["stripe-signature"];
+    const secret = process.env.STRIPE_WEBHOOK_SECRET;
 
-/* -------------------- LINE Webhook -------------------- */
+    // デバッグ用：本番では騒がしくならない程度に
+    // console.log("sig exists?", !!sig, "isBuffer?", Buffer.isBuffer(req.body), "len", req.body?.length);
+
+    try {
+      const event = stripe.webhooks.constructEvent(req.body, sig, secret);
+      // 先に受領OKを返す（Stripeの再送を防ぐ）
+      res.status(200).send("ok");
+
+      // 冪等制御（同じイベントIDは一度だけ処理）
+      const seenRef = db.collection("stripe_events").doc(event.id);
+      const seen = await seenRef.get();
+      if (seen.exists) return;
+
+      await handleStripeEvent(event);
+      await seenRef.set({ processedAt: admin.firestore.FieldValue.serverTimestamp() });
+    } catch (err) {
+      console.error("❌ 本番Webhook署名エラー:", err.message);
+      // 署名NGのときは 400 を返す
+      if (!res.headersSent) res.status(400).send("bad signature");
+    }
+  }
+);
+
+// Stripe CLI専用のWebhook（listen→forward用）
+app.post("/webhook-cli",
+  express.raw({ type: "application/json" }),
+  async (req, res) => {
+    const sig = req.headers["stripe-signature"];
+    const secret = process.env.STRIPE_CLI_WEBHOOK_SECRET;
+    try {
+      const event = stripe.webhooks.constructEvent(req.body, sig, secret);
+      res.status(200).send("ok");
+
+      const seenRef = db.collection("stripe_events").doc(event.id);
+      const seen = await seenRef.get();
+      if (seen.exists) return;
+
+      console.log("✅ CLI Webhook受信:", event.type);
+      await handleStripeEvent(event);
+      await seenRef.set({ processedAt: admin.firestore.FieldValue.serverTimestamp() });
+    } catch (err) {
+      console.error("❌ CLI署名検証エラー:", err.message);
+      if (!res.headersSent) res.status(400).send("bad signature");
+    }
+  }
+);
+
+/* ======================== LINE Webhook ======================== */
+// ※ LINEは独自の署名検証ミドルウェア。Stripeとは別ルートでOK
 app.post("/line-webhook", line.middleware(lineConfig), async (req, res) => {
   try {
     const events = req.body.events || [];
@@ -329,9 +351,15 @@ app.post("/line-webhook", line.middleware(lineConfig), async (req, res) => {
   }
 });
 
-/* -------------------- 通常ルート -------------------- */
+/* ======================== ここから通常ミドルウェア ======================== */
+// ⬇️ これ以降に JSON パーサを置く（Stripeのraw受信と衝突しない）
 app.use(express.json());
 app.use(express.static("public"));
+
+/* ======================== 通常ルート ======================== */
+app.get("/healthz", (_req, res) => {
+  res.json({ ok: true, version: process.env.GIT_COMMIT || "local" });
+});
 
 app.get("/api/hello", (_req, res) => {
   res.json({ message: "Hello from API" });
@@ -348,7 +376,7 @@ app.get("/billing-portal", async (req, res) => {
     const { stripeCustomerId } = snap.data() || {};
     if (!stripeCustomerId) return res.status(400).send("customer not linked");
 
-    const base = "https://www.oshaberiaiko.com";
+    const base = process.env.PUBLIC_ORIGIN || "https://www.oshaberiaiko.com";
     const session = await stripe.billingPortal.sessions.create({
       customer: stripeCustomerId,
       return_url: `${base}/mypage.html?userId=${encodeURIComponent(userId)}`,
@@ -385,7 +413,7 @@ app.get("/api/user/:id", async (req, res) => {
 app.post("/create-checkout-session", async (req, res) => {
   try {
     const userId = req.body.userId || "demo-user";
-    const base = "https://www.oshaberiaiko.com";
+    const base = process.env.PUBLIC_ORIGIN || "https://www.oshaberiaiko.com";
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       line_items: [{ price: process.env.STRIPE_PRICE_ID, quantity: 1 }],
