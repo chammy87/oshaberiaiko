@@ -5,6 +5,7 @@ import dotenv from "dotenv";
 import OpenAI from "openai";
 import * as line from "@line/bot-sdk";
 import admin from "firebase-admin";
+import { createRemoteJWKSet, jwtVerify } from "jose"; // ← 先頭に移動
 
 import { system as aikoSystem, templates as aikoTemplates } from "./Prompt.js";
 
@@ -228,6 +229,7 @@ async function handleStripeEvent(event) {
           },
           { merge: true }
         );
+        console.log(`✅ checkout.session.completed processed for user=${userId}`);
       }
       break;
     }
@@ -241,6 +243,7 @@ async function handleStripeEvent(event) {
           { premium: true, premiumUntil: tsFromSec(periodEndSec) },
           { merge: true }
         );
+        console.log(`✅ invoice.payment_succeeded processed for user=${userId}`);
       }
       break;
     }
@@ -257,10 +260,10 @@ async function handleStripeEvent(event) {
           },
           { merge: true }
         );
-      console.log(`✅ subscription.deleted processed for user=${userId}`);
-  }
-  break;
-}
+        console.log(`✅ subscription.deleted processed for user=${userId}`);
+      }
+      break;
+    }
     default:
       console.log(`ℹ️ 未処理イベント: ${event.type}`);
       break;
@@ -283,7 +286,6 @@ app.post("/webhook",
     console.log("[WB] isBuffer:", Buffer.isBuffer(req.body), "len:", req.body?.length);
     console.log("[WB] content-type:", req.headers["content-type"]);
 
-    // ← ここを追加（先頭/末尾だけ出す安全なプレビュー）
     const runtimeWhsec = process.env.STRIPE_WEBHOOK_SECRET || "";
     console.log(
       "[WB] env whsec preview:",
@@ -291,7 +293,7 @@ app.post("/webhook",
       "len=", runtimeWhsec.length,
       "head=", runtimeWhsec.slice(0, 8),
       "tail=", runtimeWhsec.slice(-4)
-    ); // ← ここで閉じる
+    );
 
     if (!sig) {
       console.warn("🚫 Non-Stripe access to /webhook");
@@ -300,11 +302,8 @@ app.post("/webhook",
 
     try {
       const event = stripe.webhooks.constructEvent(req.body, sig, secret);
-
-      // Stripe へは 200 をすぐ返す
       res.status(200).send("ok");
 
-      // 冪等チェック
       const seenRef = db.collection("stripe_events").doc(event.id);
       const seen = await seenRef.get();
       if (seen.exists) return;
@@ -347,7 +346,6 @@ app.post("/webhook-cli",
 );
 
 /* ======================== LINE Webhook ======================== */
-// ※ LINEは独自の署名検証ミドルウェア。Stripeとは別ルートでOK
 app.post("/line-webhook", line.middleware(lineConfig), async (req, res) => {
   try {
     const events = req.body.events || [];
@@ -369,6 +367,48 @@ app.post("/line-webhook", line.middleware(lineConfig), async (req, res) => {
   } catch (e) {
     console.error("LINE webhook error:", e);
     res.status(500).end();
+  }
+});
+
+/* ============ LIFF: IDトークン検証 & Checkout 作成 ============ */
+const LINE_ISSUER = "https://access.line.me";
+const LINE_JWKS = createRemoteJWKSet(new URL("https://api.line.me/oauth2/v2.1/certs"));
+
+async function verifyLineIdToken(idToken) {
+  const { payload } = await jwtVerify(idToken, LINE_JWKS, {
+    issuer: LINE_ISSUER,
+    audience: process.env.LINE_LOGIN_CHANNEL_ID, // ログインチャネルのChannel ID（数値）
+  });
+  return payload; // payload.sub が LINE の userId
+}
+
+// 公開設定を返す
+app.get("/api/config", (_req, res) => {
+  res.json({ liffId: process.env.LIFF_ID || "" });
+});
+
+// ★ JSON本文を受けるのでこのルートはルート専用で express.json() を付与
+app.post("/create-checkout-session/liff", express.json(), async (req, res) => {
+  try {
+    const { idToken } = req.body || {};
+    if (!idToken) return res.status(400).json({ error: "missing idToken" });
+
+    const payload = await verifyLineIdToken(idToken);
+    const userId = payload.sub;
+
+    const base = process.env.PUBLIC_ORIGIN || "https://www.oshaberiaiko.com";
+    const session = await stripe.checkout.sessions.create({
+      mode: "subscription",
+      line_items: [{ price: process.env.STRIPE_PRICE_ID, quantity: 1 }],
+      success_url: `${base}/success.html?userId=${encodeURIComponent(userId)}`,
+      cancel_url: `${base}/cancel.html?userId=${encodeURIComponent(userId)}`,
+      metadata: { userId },
+      subscription_data: { metadata: { userId } },
+    });
+    return res.json({ url: session.url });
+  } catch (e) {
+    console.error("LIFF checkout error:", e);
+    return res.status(401).json({ error: "invalid_token" });
   }
 });
 
