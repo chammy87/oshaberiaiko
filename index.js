@@ -257,9 +257,10 @@ async function handleStripeEvent(event) {
           },
           { merge: true }
         );
-      }
-      break;
-    }
+      console.log(`✅ subscription.deleted processed for user=${userId}`);
+  }
+  break;
+}
     default:
       console.log(`ℹ️ 未処理イベント: ${event.type}`);
       break;
