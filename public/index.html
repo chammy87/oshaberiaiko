@@ -1,241 +1,61 @@
 <!doctype html>
 <html lang="ja">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>おしゃべりあいこちゃん｜子育てママのためのAIおしゃべり相手</title>
-  <meta name="description" content="おしゃべりあいこちゃんは、子育て中のママ向けのやさしいAIおしゃべりサービス。雑談・気分転換・ちょっとした相談まで24時間いつでも。LINEで簡単に始められます。" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>おしゃべりあいこちゃん｜ママ専用おしゃべりAI</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
-    :root { --bg:#fff; --fg:#222; --muted:#636a7a; --brand:#2f6df6; --accent:#f6f7fb; --card:#ffffff; --border:#e8eaf0; }
-    *{box-sizing:border-box}
-    body{margin:0;font-family:"Noto Sans JP",system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial,"Apple Color Emoji","Segoe UI Emoji";color:var(--fg);background:var(--bg);}
-    header{position:sticky;top:0;background:rgba(255,255,255,.8);backdrop-filter:saturate(180%) blur(8px);border-bottom:1px solid var(--border);z-index:50}
-    .container{max-width:960px;margin:0 auto;padding:0 16px}
-    .nav{display:flex;align-items:center;justify-content:space-between;height:64px}
-    .logo{display:flex;gap:8px;align-items:center;font-weight:700}
-    .pill{font-size:12px;background:#e9efff;color:#2f4db3;padding:4px 8px;border-radius:999px;margin-left:8px}
-    .btn{display:inline-block;padding:12px 16px;border-radius:12px;border:1px solid var(--border);text-decoration:none;color:var(--fg);background:#fff;font-weight:600}
-    .btn.brand{background:var(--brand);color:#fff;border-color:var(--brand)}
-    .btn.ghost{background:transparent}
-    .hero{padding:48px 0 24px;background:linear-gradient(180deg,#f9fbff 0%,#fff 70%)}
-    .headline{font-size:clamp(24px,4vw,36px);line-height:1.25;margin:0 0 12px;font-weight:800}
-    .sub{color:var(--muted);font-size:16px}
-    .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:28px 0}
-    .card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px}
-    .card h3{margin:0 0 6px;font-size:15px}
-    .card p{margin:0;color:var(--muted);font-size:14px}
-    .section{padding:40px 0;border-top:1px solid var(--border)}
-    .kakomi{background:var(--accent);border:1px dashed var(--border);padding:12px;border-radius:12px}
-    footer{padding:24px 0;border-top:1px solid var(--border);font-size:14px;color:var(--muted)}
-    .links{display:flex;flex-wrap:wrap;gap:16px}
-    .links a{color:var(--muted)}
-    .badge{font-size:12px;padding:4px 8px;border-radius:8px;background:#eef2ff;color:#3340aa;border:1px solid #dfe6ff}
-    .grid2{display:grid;grid-template-columns:1fr;gap:16px}
-    @media (min-width:840px){.grid2{grid-template-columns:1.2fr .8fr}}
-    .list{margin:0 0 0 18px;color:var(--muted)}
-    dialog{width:min(860px,92vw);border:1px solid var(--border);border-radius:12px;padding:0}
-    dialog::backdrop{background:rgba(0,0,0,.25)}
-    .modal-head{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--border)}
-    .modal-body{padding:16px;max-height:70vh;overflow:auto}
-    .x{border:none;background:transparent;font-size:20px;cursor:pointer}
-    .muted{color:var(--muted)}
-    code{background:#f6f7fb;padding:2px 6px;border-radius:6px;border:1px solid #e8eaf0}
+    body{font-family:"Noto Sans JP",system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial;color:#222;margin:0;background:#fff}
+    header{padding:20px;text-align:center;background:#f8f9ff}
+    header h1{font-size:22px;margin:0;font-weight:700}
+    header p{color:#555;margin:6px 0 0;font-size:14px}
+    .hero{max-width:720px;margin:24px auto;text-align:center;padding:0 16px}
+    .hero img{max-width:100%;border-radius:12px;margin-bottom:20px}
+    .btn{display:inline-block;padding:12px 18px;margin:6px;border-radius:12px;text-decoration:none;font-weight:600}
+    .btn.brand{background:#2f6df6;color:#fff}
+    .btn.outline{border:1px solid #2f6df6;color:#2f6df6;background:#fff}
+    .section{max-width:720px;margin:40px auto;padding:0 16px}
+    .card{border:1px solid #e8eaf0;border-radius:14px;padding:16px;background:#fff;margin-bottom:16px}
+    footer{text-align:center;padding:24px;font-size:12px;color:#777;background:#fafafa;margin-top:40px}
   </style>
 </head>
 <body>
   <header>
-    <div class="container nav">
-      <div class="logo">おしゃべりあいこちゃん <span class="pill">β</span></div>
-      <div class="links">
-        <a class="btn ghost" href="#how">使い方</a>
-        <a class="btn ghost" href="#faq">よくある質問</a>
-        <a class="btn brand" href="#start">LINEで始める（準備中）</a>
-      </div>
-    </div>
+    <h1>おしゃべりあいこちゃん</h1>
+    <p>子育てママ専用のやさしいAIおしゃべり相手</p>
   </header>
 
-  <main>
-    <section class="hero">
-      <div class="container grid2">
-        <div>
-          <h1 class="headline">ママのための、やさしいAIおしゃべり相手</h1>
-          <p class="sub">「おしゃべりあいこちゃん」は、子育てがちょっと孤独に感じるときに寄りそい、雑談・相談・気分転換を手伝うAIサービスです。24時間いつでも、LINEで気軽に話しかけてください。</p>
-          <div style="display:flex;gap:12px;margin-top:16px">
-            <a class="btn brand" href="#start">LINEで始める（準備中）</a>
-            <a class="btn" href="#features">できることを見る</a>
-          </div>
-          <p class="muted" style="margin-top:10px">※ 現在は本番公開準備中です（2025年8月時点）。</p>
-        </div>
-        <div class="kakomi">
-          <p style="margin:0 0 6px;font-weight:700">このページの目的</p>
-          <ul class="list">
-            <li>サービスの概要と提供者情報の公開</li>
-            <li>利用規約・プライバシーポリシーの明示</li>
-            <li>Stripe決済の事業者情報確認に対応</li>
-          </ul>
-          <p class="muted" style="margin-top:6px">審査・確認のための簡易LPです。順次アップデートします。</p>
-        </div>
-      </div>
-    </section>
+  <div class="hero">
+  <!-- Canvaで作ったメインビジュアルを配置 -->
+  <img src="main-visual.png" alt="おしゃべりあいこちゃん">
 
-    <section id="features" class="section">
-      <div class="container">
-        <h2 style="margin:0 0 12px">おしゃべりあいこちゃんでできること</h2>
-        <div class="cards">
-          <div class="card"><h3>やさしい雑談</h3><p>今日あったこと、うれしかったこと、ちょっとモヤっとしたこと。なんでも話してください。</p></div>
-          <div class="card"><h3>気分転換の提案</h3><p>3分でできる気分転換、簡単セルフケア、深呼吸リマインドなど。</p></div>
-          <div class="card"><h3>ちょこっと相談</h3><p>ママ友には話しにくい小さな悩みも、まずは言語化からサポートします。</p></div>
-          <div class="card"><h3>レシピお手伝い</h3><p>冷蔵庫の食材から作れるメニュー案を提案（関連ミニアプリ）。</p></div>
-          <div class="card"><h3>プレミアム（任意）</h3><p>会話回数UP、限定コラム、関連アプリ連携などを予定。</p></div>
-          <div class="card"><h3>24時間いつでも</h3><p>LINEからいつでも利用できます。返信が遅い時間は通知オフ推奨。</p></div>
-        </div>
-      </div>
-    </section>
+  <p>孤独になりがちな子育ての日々に、<br>ちょっとした安心と笑顔を届けます。</p>
 
-    <section id="how" class="section">
-      <div class="container">
-        <h2 style="margin:0 0 12px">使い方（β）</h2>
-        <ol class="list">
-          <li>LINEで公式アカウントを友だち追加（公開準備中）</li>
-          <li>メニューから「おしゃべりを始める」をタップ</li>
-          <li>困ったら「ヘルプ」と入力で使い方表示</li>
-        </ol>
-        <p class="muted">※ 実装・公開状況により一部機能は順次提供となります。</p>
-      </div>
-    </section>
+  <!-- ボタン型リンク -->
+  <a href="/mypage.html" class="btn brand">マイページへ</a>
+  <a href="/create-checkout-session" class="btn outline">プレミアムに登録</a>
+</div>
 
-    <section id="start" class="section">
-      <div class="container">
-        <h2 style="margin:0 0 12px">料金について</h2>
-        <p class="badge">β版</p>
-        <p class="muted">無料プランのほか、プレミアム（月額・任意）を準備中です。価格・特典は公開時にご案内します。</p>
-      </div>
-    </section>
-
-    <section id="faq" class="section">
-      <div class="container">
-        <h2 style="margin:0 0 12px">よくある質問</h2>
-        <details><summary>個人情報はどのように扱われますか？</summary>
-          <div class="muted">プライバシーポリシーに基づき、利用目的を限定し、適切な安全管理措置を講じます。詳細は本ページ下部のリンクからご確認ください。</div>
-        </details>
-        <details><summary>医療・法律など専門相談はできますか？</summary>
-          <div class="muted">本サービスは一般的な情報提供・雑談を目的としており、専門的な助言の提供は行いません。必要な場合は専門機関のご利用をご検討ください。</div>
-        </details>
-      </div>
-    </section>
-
-    <section id="legal" class="section">
-      <div class="container">
-        <h2 style="margin:0 0 12px">事業者情報</h2>
-        <p class="muted">運営者：<strong>おしゃべりあいこ</strong><br>
-        （運営責任者：玻名城寿美）<br>
-        所在地：非公開（請求時開示）／ 連絡先：<a href="mailto:contact@oshaberiaiko.com">contact@oshaberiaiko.com</a><br>
-        サイト：<a href="https://www.oshaberiaiko.com">www.oshaberiaiko.com</a></p>
-        <div class="links" style="margin-top:8px">
-          <a href="#" data-open="terms">利用規約</a>
-          <a href="#" data-open="privacy">プライバシーポリシー</a>
-          <a href="#" data-open="tokusho">特定商取引法に基づく表記</a>
-        </div>
-      </div>
-    </section>
-  </main>
+  <div class="section">
+    <h2>サービスの特徴</h2>
+    <div class="card">
+      <strong>🎙 1日3回まで無料</strong>
+      <p>気軽におしゃべりできます。もっと話したい方はプレミアムへ。</p>
+    </div>
+    <div class="card">
+      <strong>💬 子育ての愚痴や相談</strong>
+      <p>誰にも言えないことも安心しておしゃべりできます。</p>
+    </div>
+    <div class="card">
+      <strong>✨ プレミアム機能</strong>
+      <p>回数無制限で利用可能。レシピ提案など便利機能も追加予定！</p>
+    </div>
+  </div>
 
   <footer>
-    <div class="container" style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap">
-      <div>© <span id="y"></span> Oshaberiaiko</div>
-      <div class="links">
-        <a href="#" data-open="terms">利用規約</a>
-        <a href="#" data-open="privacy">プライバシー</a>
-        <a href="#" data-open="tokusho">特商法表記</a>
-      </div>
-    </div>
+    <p>&copy; 2025 おしゃべりあいこちゃん</p>
   </footer>
-
-  <!-- 利用規約 -->
-  <dialog id="terms">
-    <div class="modal-head"><strong>利用規約</strong><button class="x" data-close>×</button></div>
-    <div class="modal-body">
-      <p class="muted">最終更新：2025年8月17日</p>
-      <ol>
-        <li><strong>本規約の適用</strong>　本規約は「おしゃべりあいこちゃん」（以下「本サービス」）の利用条件を定めるものです。</li>
-        <li><strong>禁止事項</strong>　法令・公序良俗に反する行為、第三者の権利侵害、過度なスパム行為等は禁止します。</li>
-        <li><strong>医療・法律等に関する免責</strong>　本サービスは一般的な情報提供・雑談を目的としており、専門的助言を提供しません。</li>
-        <li><strong>有料プラン</strong>　有料プランの内容・価格・決済条件は別途案内します。決済はStripeを利用します。</li>
-        <li><strong>利用停止</strong>　規約違反が認められる場合、当方は事前通知なく利用停止できるものとします。</li>
-        <li><strong>免責</strong>　当方は、利用により生じた損害について、故意または重過失がある場合を除き責任を負いません。</li>
-        <li><strong>規約の変更</strong>　必要に応じて本規約を変更する場合があります。変更後の規約は本サイトに掲載した時点で効力を生じます。</li>
-        <li><strong>準拠法・裁判管轄</strong>　本規約は日本法に準拠し、紛争は当方所在地を管轄する裁判所を第一審の専属的合意管轄とします。</li>
-      </ol>
-    </div>
-  </dialog>
-
-  <!-- プライバシーポリシー -->
-  <dialog id="privacy">
-    <div class="modal-head"><strong>プライバシーポリシー</strong><button class="x" data-close>×</button></div>
-    <div class="modal-body">
-      <p class="muted">最終更新：2025年8月17日</p>
-      <ol>
-        <li><strong>取得する情報</strong>　LINEアカウント情報、チャット内容、問い合わせ時のメール情報、決済関連の必要情報（Stripe経由）等。</li>
-        <li><strong>利用目的</strong>　本サービスの提供・品質向上、問い合わせ対応、課金・不正防止、法令遵守。</li>
-        <li><strong>第三者提供</strong>　法令に基づく場合を除き、本人同意なく第三者提供は行いません。</li>
-        <li><strong>外部委託</strong>　クラウドサービス（例：Render, Stripe）を利用する場合があります。各事業者のポリシーに従います。</li>
-        <li><strong>安全管理</strong>　アクセス制御、ログ管理、暗号化等の合理的な対策を講じます。</li>
-        <li><strong>個人情報の開示・訂正・削除</strong>　所定の手続により対応します。<a href="mailto:contact@oshaberiaiko.com">contact@oshaberiaiko.com</a> までご連絡ください。</li>
-        <li><strong>Cookie等</strong>　本サイトは利用状況の把握のためにCookie等を利用する場合があります。</li>
-        <li><strong>改定</strong>　本ポリシーは予告なく改定する場合があります。改定後は本サイトで告知します。</li>
-      </ol>
-    </div>
-  </dialog>
-
-  <!-- 特定商取引法表記 -->
-  <dialog id="tokusho">
-    <div class="modal-head"><strong>特定商取引法に基づく表記</strong><button class="x" data-close>×</button></div>
-    <div class="modal-body">
-      <p class="muted">最終更新：2025年8月17日</p>
-      <ul class="muted">
-        <li>販売事業者：おしゃべりあいこ（運営責任者：玻名城寿美）</li>
-        <li>所在地：請求時に遅滞なく開示（お問い合わせメールにて）</li>
-        <li>連絡先：contact@oshaberiaiko.com</li>
-        <li>販売価格：各プランページに表示</li>
-        <li>支払方法：クレジットカード（Stripe）</li>
-        <li>提供時期：決済完了後ただちに</li>
-        <li>返品・キャンセル：デジタルサービスの特性上、提供後の返品は不可。解約は次回更新日までに手続き。</li>
-      </ul>
-    </div>
-  </dialog>
-
-  <script>
-    document.addEventListener("DOMContentLoaded", () => {
-      // 年号
-      const y = document.getElementById("y");
-      if (y) y.textContent = new Date().getFullYear();
-
-      // モーダルを開く
-      document.querySelectorAll("[data-open]").forEach((el) => {
-        el.addEventListener("click", (e) => {
-          e.preventDefault();
-          const id = el.getAttribute("data-open");
-          const dlg = document.getElementById(id);
-          if (!dlg || typeof dlg.showModal !== "function") {
-            // 未対応環境のフォールバック（個別ページに遷移したい場合は /terms.html 等を作成）
-            window.location.href = `/${id}.html`;
-            return;
-          }
-          dlg.showModal();
-        });
-      });
-
-      // モーダルを閉じる
-      document.querySelectorAll("[data-close]").forEach((el) => {
-        el.addEventListener("click", () => {
-          const d = el.closest("dialog");
-          if (d) d.close();
-        });
-      });
-    });
-  </script>
 </body>
 </html>
