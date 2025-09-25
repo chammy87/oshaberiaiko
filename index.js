@@ -5,7 +5,7 @@ import dotenv from "dotenv";
 import OpenAI from "openai";
 import * as line from "@line/bot-sdk";
 import admin from "firebase-admin";
-import { createRemoteJWKSet, jwtVerify } from "jose"; // ← 先頭に移動
+import { createRemoteJWKSet, jwtVerify } from "jose";
 
 import { system as aikoSystem, templates as aikoTemplates } from "./Prompt.js";
 
@@ -275,7 +275,8 @@ async function handleStripeEvent(event) {
    =========================================================== */
 
 // 本番/ダッシュボードのWebhook
-app.post("/webhook",
+app.post(
+  "/webhook",
   express.raw({ type: "application/json" }),
   async (req, res) => {
     const sig = req.headers["stripe-signature"];
@@ -290,9 +291,12 @@ app.post("/webhook",
     console.log(
       "[WB] env whsec preview:",
       runtimeWhsec.startsWith("whsec_"),
-      "len=", runtimeWhsec.length,
-      "head=", runtimeWhsec.slice(0, 8),
-      "tail=", runtimeWhsec.slice(-4)
+      "len=",
+      runtimeWhsec.length,
+      "head=",
+      runtimeWhsec.slice(0, 8),
+      "tail=",
+      runtimeWhsec.slice(-4)
     );
 
     if (!sig) {
@@ -309,7 +313,9 @@ app.post("/webhook",
       if (seen.exists) return;
 
       await handleStripeEvent(event);
-      await seenRef.set({ processedAt: admin.firestore.FieldValue.serverTimestamp() });
+      await seenRef.set({
+        processedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
     } catch (err) {
       console.error("❌ 本番Webhook署名エラー:", err.message);
       if (!res.headersSent) res.status(400).send("bad signature");
@@ -318,7 +324,8 @@ app.post("/webhook",
 );
 
 // Stripe CLI専用のWebhook
-app.post("/webhook-cli",
+app.post(
+  "/webhook-cli",
   express.raw({ type: "application/json" }),
   async (req, res) => {
     const sig = req.headers["stripe-signature"];
@@ -337,7 +344,9 @@ app.post("/webhook-cli",
 
       console.log("✅ CLI Webhook受信:", event.type);
       await handleStripeEvent(event);
-      await seenRef.set({ processedAt: admin.firestore.FieldValue.serverTimestamp() });
+      await seenRef.set({
+        processedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
     } catch (err) {
       console.error("❌ CLI署名検証エラー:", err.message);
       if (!res.headersSent) res.status(400).send("bad signature");
@@ -370,9 +379,11 @@ app.post("/line-webhook", line.middleware(lineConfig), async (req, res) => {
   }
 });
 
-/* ============ LIFF: IDトークン検証 & Checkout 作成 ============ */
+/* ============ LIFF: IDトークン検証 & Checkout 作成/解決 ============ */
 const LINE_ISSUER = "https://access.line.me";
-const LINE_JWKS = createRemoteJWKSet(new URL("https://api.line.me/oauth2/v2.1/certs"));
+const LINE_JWKS = createRemoteJWKSet(
+  new URL("https://api.line.me/oauth2/v2.1/certs")
+);
 
 async function verifyLineIdToken(idToken) {
   const { payload } = await jwtVerify(idToken, LINE_JWKS, {
@@ -382,12 +393,25 @@ async function verifyLineIdToken(idToken) {
   return payload; // payload.sub が LINE の userId
 }
 
-// 公開設定を返す
+// 公開設定を返す（LIFF ID）
 app.get("/api/config", (_req, res) => {
   res.json({ liffId: process.env.LIFF_ID || "" });
 });
 
-// ★ JSON本文を受けるのでこのルートはルート専用で express.json() を付与
+// idToken → userId を返す（マイページ用）
+app.post("/api/resolve-user", express.json(), async (req, res) => {
+  try {
+    const { idToken } = req.body || {};
+    if (!idToken) return res.status(400).json({ error: "missing idToken" });
+    const payload = await verifyLineIdToken(idToken);
+    return res.json({ userId: payload.sub });
+  } catch (e) {
+    console.error("resolve-user error:", e);
+    return res.status(401).json({ error: "invalid_token" });
+  }
+});
+
+// LIFF経由のCheckout作成（userIdメタデータ付与）
 app.post("/create-checkout-session/liff", express.json(), async (req, res) => {
   try {
     const { idToken } = req.body || {};
