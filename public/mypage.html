@@ -16,33 +16,52 @@
     .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
     .ok{color:#155724;background:#d4edda;border:1px solid #c3e6cb}
     .ng{color:#721c24;background:#f8d7da;border:1px solid #f5c6cb}
-    a.btn{display:inline-block;padding:10px 14px;border-radius:12px;border:1px solid #e8eaf0;text-decoration:none;color:#222;background:#fff;font-weight:600}
+    a.btn,button.btn{display:inline-block;padding:10px 14px;border-radius:12px;border:1px solid #e8eaf0;text-decoration:none;color:#222;background:#fff;font-weight:600;cursor:pointer}
     .brand{background:#2f6df6;color:#fff;border-color:#2f6df6}
     .mt{margin-top:12px}
+    .center{display:flex;justify-content:center}
   </style>
+  <!-- LIFF SDK -->
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 </head>
 <body>
   <div class="container">
     <h1>マイページ</h1>
     <p class="muted">プレミアムの状態と次回更新日を確認できます。</p>
 
-    <div id="status" class="card">
-      読み込み中…
+    <!-- userId未指定時に出す：LIFFで本人確認 -->
+    <div id="loginBox" class="card" style="display:none">
+      <p class="muted">LINEで本人確認を行うと、ユーザー情報を自動取得します。</p>
+      <div class="center">
+        <button id="btnLiffLogin" class="btn brand">LINEで本人確認して表示</button>
+      </div>
+      <p class="muted" style="margin-top:8px">※ LINEアプリ内ブラウザだとスムーズです。</p>
     </div>
+
+    <div id="status" class="card">読み込み中…</div>
     
     <div class="mt" id="manageWrap" style="display:none">
-  <a id="manage" class="btn brand" href="#">お支払い設定・解約</a>
-</div>
+      <a id="manage" class="btn brand" href="#">お支払い設定・解約</a>
+    </div>
 
-    <div class="mt">
+    <div class="mt row">
       <a class="btn" href="/">← トップへ戻る</a>
+      <button id="btnJoin" class="btn brand" style="display:none">プレミアムに加入する</button>
     </div>
   </div>
 
 <script>
   document.addEventListener('DOMContentLoaded', () => {
     const params = new URLSearchParams(location.search);
-    const userId = params.get("userId");
+    const userIdParam = params.get("userId");
+
+    const $ = (id) => document.getElementById(id);
+    const statusBox = $("status");
+    const loginBox = $("loginBox");
+    const btnLiffLogin = $("btnLiffLogin");
+    const btnJoin = $("btnJoin");
+    const manage = $("manage");
+    const manageWrap = $("manageWrap");
 
     const fmtJP = (iso) => {
       if (!iso) return null;
@@ -57,36 +76,23 @@
       return Math.ceil((new Date(iso) - new Date()) / (1000*60*60*24));
     };
 
-    async function load() {
-      const box = document.getElementById("status");
-      const manage = document.getElementById("manage");
-      const manageWrap = document.getElementById("manageWrap");
+    async function loadByUserId(userId) {
       if (manageWrap) manageWrap.style.display = "none";
-
-      if (!userId) {
-        box.innerHTML = `
-          <p class="ng" style="padding:8px 10px;border-radius:10px">userId が指定されていません。</p>
-          <p class="muted">URLの末尾に <code>?userId=あなたのID</code> を付けてアクセスしてください。</p>
-        `;
-        return;
-      }
-
       try {
         const url = `${location.origin}/api/user/${encodeURIComponent(userId)}`;
         const res = await fetch(url, { headers: { Accept: "application/json" }, cache: "no-store" });
         if (!res.ok) {
           if (manageWrap) manageWrap.style.display = "none";
-          box.innerHTML = `
+          statusBox.innerHTML = `
             <p class="ng" style="padding:8px 10px;border-radius:10px">ユーザー情報が見つかりません（${res.status}）。</p>
             <p class="muted">決済が完了しているか、userId が正しいかご確認ください。</p>
           `;
           return;
         }
-
         const data = await res.json();
         if (!data.exists) {
           if (manageWrap) manageWrap.style.display = "none";
-          box.innerHTML = `<p class="ng" style="padding:8px 10px;border-radius:10px">ユーザーデータが存在しません。</p>`;
+          statusBox.innerHTML = `<p class="ng" style="padding:8px 10px;border-radius:10px">ユーザーデータが存在しません。</p>`;
           return;
         }
 
@@ -96,13 +102,11 @@
 
         if (data.premium) {
           const cancelBadge = data.cancelPending
-            ? `<span class="badge ng" style="margin-left:8px;">解約予定</span>`
-            : "";
+            ? `<span class="badge ng" style="margin-left:8px;">解約予定</span>` : "";
           const cancelLine = (data.cancelPending && data.cancelAt)
-            ? `<p class="muted">解約予定日：${fmtJP(data.cancelAt)}（その日まではご利用いただけます）</p>`
-            : "";
+            ? `<p class="muted">解約予定日：${fmtJP(data.cancelAt)}（その日まではご利用いただけます）</p>` : "";
 
-          box.innerHTML = `
+          statusBox.innerHTML = `
             <div class="row">
               <span class="badge ok">プレミアム会員</span>${cancelBadge}
             </div>
@@ -112,27 +116,102 @@
           `;
           if (manage) manage.href = `/billing-portal?userId=${encodeURIComponent(userId)}`;
           if (manageWrap) manageWrap.style.display = "block";
+          if (btnJoin) btnJoin.style.display = "none";
         } else {
           if (manageWrap) manageWrap.style.display = "none";
-          box.innerHTML = `
+          statusBox.innerHTML = `
             <div class="row">
               <span class="badge ng">未加入</span>
             </div>
             <p class="mt muted">プレミアムは未加入です。</p>
-            <a class="btn brand mt" href="/create-checkout-session" onclick="return false;">加入する</a>
           `;
+          if (btnJoin) btnJoin.style.display = "inline-block";
+          // 加入ボタン（LIFF経由のCheckout）
+          btnJoin.onclick = async () => {
+            try {
+              // 既に userId を持っている場合は通常の create-checkout-session でもよいが、
+              // LIFF経由に統一してもOK（サーバ側で userId をメタデータに入れる運用に合わせるなら下記を使用）
+              const liffId = await getLiffId();
+              await liffInit(liffId);
+              const idToken = liff.getIDToken();
+              const res = await fetch("/create-checkout-session/liff", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ idToken })
+              });
+              const json = await res.json();
+              if (json.url) location.href = json.url;
+              else alert("決済ページを開けませんでした");
+            } catch (e) {
+              console.error(e);
+              alert("決済の開始に失敗しました。LINEアプリ内でお試しください。");
+            }
+          };
         }
       } catch (e) {
         console.error(e);
         if (manageWrap) manageWrap.style.display = "none";
-        box.innerHTML = `
+        statusBox.innerHTML = `
           <p class="ng" style="padding:8px 10px;border-radius:10px">読み込み中にエラーが発生しました。</p>
           <p class="muted">${e?.message || e}</p>
         `;
       }
     }
 
-    load();
+    async function getLiffId() {
+      const res = await fetch("/api/config", { cache: "no-store" });
+      const json = await res.json();
+      if (!json?.liffId) throw new Error("LIFF ID not set");
+      return json.liffId;
+    }
+
+    async function liffInit(liffId) {
+      if (!window.liff) throw new Error("LIFF SDK not loaded");
+      if (!liff.isInClient()) {
+        // ブラウザ環境でも動かす（ログイン誘導）
+        await liff.init({ liffId });
+        if (!liff.isLoggedIn()) liff.login({ redirectUri: location.href });
+      } else {
+        await liff.init({ liffId });
+      }
+    }
+
+    async function resolveByLiff() {
+      try {
+        const liffId = await getLiffId();
+        await liffInit(liffId);
+        const idToken = liff.getIDToken();
+        if (!idToken) throw new Error("LINEでの認証が必要です");
+
+        const res = await fetch("/api/resolve-user", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ idToken })
+        });
+        const json = await res.json();
+        if (!json?.userId) throw new Error("userId を取得できませんでした");
+
+        // userId をクエリに付けて再読み込み（ブックマーク可能に）
+        const url = new URL(location.href);
+        url.searchParams.set("userId", json.userId);
+        location.replace(url.toString());
+      } catch (e) {
+        console.error(e);
+        alert("LINEでの本人確認に失敗しました。LINEアプリ内で再度お試しください。");
+      }
+    }
+
+    // エントリーポイント
+    (async () => {
+      if (userIdParam) {
+        await loadByUserId(userIdParam);
+        return;
+      }
+      // userIdが無い → LIFFで本人確認の導線を出す
+      statusBox.style.display = "none";
+      loginBox.style.display = "block";
+      btnLiffLogin.onclick = resolveByLiff;
+    })();
   });
 </script>
 </body>
