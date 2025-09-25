@@ -9,6 +9,20 @@
   <style>
     body{font-family:"Noto Sans JP",system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial;color:#222;margin:0;background:#fff}
     .container{max-width:720px;margin:0 auto;padding:24px 16px}
+
+    /* 横並び用 */
+    .header-flex{
+      display:flex;
+      align-items:center;
+      gap:20px;
+      flex-wrap:wrap; /* スマホでは縦並び */
+    }
+    .header-flex img{
+      width:140px;
+      border-radius:12px;
+      flex-shrink:0;
+    }
+
     .card{border:1px solid #e8eaf0;border-radius:14px;padding:16px;background:#fff}
     h1{font-size:22px;margin:0 0 12px}
     .muted{color:#636a7a}
@@ -16,37 +30,32 @@
     .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
     .ok{color:#155724;background:#d4edda;border:1px solid #c3e6cb}
     .ng{color:#721c24;background:#f8d7da;border:1px solid #f5c6cb}
-    a.btn,button.btn{display:inline-block;padding:10px 14px;border-radius:12px;border:1px solid #e8eaf0;text-decoration:none;color:#222;background:#fff;font-weight:600;cursor:pointer}
+    a.btn{display:inline-block;padding:10px 14px;border-radius:12px;border:1px solid #e8eaf0;text-decoration:none;color:#222;background:#fff;font-weight:600}
     .brand{background:#2f6df6;color:#fff;border-color:#2f6df6}
     .mt{margin-top:12px}
-    .center{display:flex;justify-content:center}
   </style>
-  <!-- LIFF SDK -->
-  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 </head>
 <body>
   <div class="container">
-    <h1>マイページ</h1>
-    <p class="muted">プレミアムの状態と次回更新日を確認できます。</p>
-
-    <!-- userId未指定時に出す：LIFFで本人確認 -->
-    <div id="loginBox" class="card" style="display:none">
-      <p class="muted">LINEで本人確認を行うと、ユーザー情報を自動取得します。</p>
-      <div class="center">
-        <button id="btnLiffLogin" class="btn brand">LINEで本人確認して表示</button>
+    <!-- イラストとタイトル横並び -->
+    <div class="header-flex">
+      <img src="/aiko-mypage.png" alt="あいこちゃん">
+      <div>
+        <h1>マイページ</h1>
+        <p class="muted">プレミアムの状態と次回更新日を確認できます。</p>
       </div>
-      <p class="muted" style="margin-top:8px">※ LINEアプリ内ブラウザだとスムーズです。</p>
     </div>
 
-    <div id="status" class="card">読み込み中…</div>
+    <div id="status" class="card mt">
+      読み込み中…
+    </div>
     
     <div class="mt" id="manageWrap" style="display:none">
       <a id="manage" class="btn brand" href="#">お支払い設定・解約</a>
     </div>
 
-    <div class="mt row">
+    <div class="mt">
       <a class="btn" href="/">← トップへ戻る</a>
-      <button id="btnJoin" class="btn brand" style="display:none">プレミアムに加入する</button>
     </div>
   </div>
 
