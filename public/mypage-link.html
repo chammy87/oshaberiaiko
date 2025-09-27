@@ -32,24 +32,22 @@
     async function getConfig(){
       const r = await fetch("/api/config",{cache:"no-store"});
       if(!r.ok) throw new Error("config load failed: "+r.status);
-      return r.json(); // { liffId }
+      return r.json(); // { liffId, liffIdPay?, liffIdMypage? }
     }
 
     async function ensureLogin(liffId){
       await liff.init({ liffId });
+      log("LIFF 初期化完了 (id=" + liffId + ")");
       if(!liff.isLoggedIn()){
-        // 戻り先はこのページ
+        log("未ログイン → LINEログインへ遷移");
         liff.login({ redirectUri: location.href });
         return null;
       }
-      // ログイン済み → IDトークンから userId 取得
       const decoded = liff.getDecodedIDToken && liff.getDecodedIDToken();
       const userId = decoded?.sub;
       if(!userId){
-        // 古い環境向けフォールバック
         const idToken = liff.getIDToken();
-        if(!idToken) throw new Error("IDトークンを取得できませんでした");
-        // userId が取れないケースは profile を使う手もあるが、sub の方が確実
+        if(!idToken) throw new Error("IDトークンを取得できませんでした（LIFFのScopeに openid が必要）");
         throw new Error("userId を取得できませんでした（decodedIDToken.sub が未取得）");
       }
       return userId;
@@ -58,11 +56,12 @@
     async function run(){
       try{
         log("設定を取得中…");
-        const { liffId } = await getConfig();
-        if(!liffId) throw new Error("LIFF_ID が未設定です（/api/config）");
+        const { liffId, liffIdMypage } = await getConfig();
+        const useLiffId = liffIdMypage || liffId; // ★ ここがポイント
+        if(!useLiffId) throw new Error("LIFF_ID が未設定です（/api/config）");
 
         log("LINEログイン確認中…");
-        const userId = await ensureLogin(liffId);
+        const userId = await ensureLogin(useLiffId);
         if(!userId){ log("LINEログインへ遷移しました…"); return; }
 
         log("マイページへ移動します");
