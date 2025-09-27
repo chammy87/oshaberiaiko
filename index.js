@@ -395,7 +395,11 @@ async function verifyLineIdToken(idToken) {
 
 // 公開設定を返す（LIFF ID）
 app.get("/api/config", (_req, res) => {
-  res.json({ liffId: process.env.LIFF_ID || "" });
+  res.json({
+    liffId: process.env.LIFF_ID_PAY || process.env.LIFF_ID || "",
+    liffIdPay: process.env.LIFF_ID_PAY || "",
+    liffIdMypage: process.env.LIFF_ID_MYPAGE || "",
+  });
 });
 
 // idToken → userId を返す（マイページ用）
