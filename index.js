@@ -93,6 +93,29 @@ function isPremiumFromData(data) {
   return until.getTime() > Date.now();
 }
 
+/* ============ Rich Menu 切替（エイリアスリンク） ============ */
+// userId: LINEのユーザーID（U...）
+// alias:  "richmenu-premium" or "richmenu-regular" など
+async function linkRichMenuAliasToUser(userId, alias) {
+  try {
+    const res = await fetch(
+      `https://api.line.me/v2/bot/user/${encodeURIComponent(userId)}/richmenu/alias/${encodeURIComponent(alias)}`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${process.env.LINE_CHANNEL_ACCESS_TOKEN}` },
+      }
+    );
+    if (!res.ok) {
+      const t = await res.text();
+      console.warn("RichMenu link error:", res.status, t);
+    } else {
+      console.log(`✅ RichMenu '${alias}' linked to user=${userId}`);
+    }
+  } catch (e) {
+    console.error("RichMenu link exception:", e);
+  }
+}
+
 /* ======================== 会話コア ======================== */
 async function chatWithAiko({ userId, text }) {
   const userSnap = await db.collection("users").doc(String(userId)).get();
@@ -187,6 +210,13 @@ async function handleStripeEvent(event) {
           },
           { merge: true }
         );
+        // 解約予約が付いたら通常、継続ならプレミアム
+        await linkRichMenuAliasToUser(
+          userId,
+          willCancel
+            ? (process.env.RICHMENU_ALIAS_REGULAR || "richmenu-regular")
+            : (process.env.RICHMENU_ALIAS_PREMIUM || "richmenu-premium")
+        );
       }
       break;
     }
@@ -230,6 +260,10 @@ async function handleStripeEvent(event) {
           { merge: true }
         );
         console.log(`✅ checkout.session.completed processed for user=${userId}`);
+        await linkRichMenuAliasToUser(
+          userId,
+          process.env.RICHMENU_ALIAS_PREMIUM || "richmenu-premium"
+        );
       }
       break;
     }
@@ -244,6 +278,10 @@ async function handleStripeEvent(event) {
           { merge: true }
         );
         console.log(`✅ invoice.payment_succeeded processed for user=${userId}`);
+        await linkRichMenuAliasToUser(
+          userId,
+          process.env.RICHMENU_ALIAS_PREMIUM || "richmenu-premium"
+        );
       }
       break;
     }
@@ -261,6 +299,10 @@ async function handleStripeEvent(event) {
           { merge: true }
         );
         console.log(`✅ subscription.deleted processed for user=${userId}`);
+        await linkRichMenuAliasToUser(
+          userId,
+          process.env.RICHMENU_ALIAS_REGULAR || "richmenu-regular"
+        );
       }
       break;
     }
@@ -444,6 +486,27 @@ app.post("/create-checkout-session/liff", express.json(), async (req, res) => {
 // ⬇️ これ以降に JSON パーサを置く（Stripeのraw受信と衝突しない）
 app.use(express.json());
 app.use(express.static("public"));
+
+/* ======================== 管理用：手動リッチメニュー切替（任意） ======================== */
+// /admin/switch-richmenu?userId=U...&plan=premium|regular&key=...
+app.post("/admin/switch-richmenu", express.json(), async (req, res) => {
+  try {
+    const { userId, plan, key } = { ...req.query, ...req.body };
+    if (!key || key !== process.env.ADMIN_KEY) return res.status(403).json({ error: "forbidden" });
+    if (!userId || !plan) return res.status(400).json({ error: "missing userId or plan" });
+
+    const alias =
+      plan === "premium"
+        ? (process.env.RICHMENU_ALIAS_PREMIUM || "richmenu-premium")
+        : (process.env.RICHMENU_ALIAS_REGULAR || "richmenu-regular");
+
+    await linkRichMenuAliasToUser(userId, alias);
+    res.json({ ok: true, linked: alias, userId });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "internal_error" });
+  }
+});
 
 /* ======================== 通常ルート ======================== */
 app.get("/healthz", (_req, res) => {
