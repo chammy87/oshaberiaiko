@@ -97,6 +97,7 @@ function isPremiumFromData(data) {
 // userId: LINEのユーザーID（U...）
 // richMenuId: "richmenu-xxxxxxxx..."（実ID）
 async function linkRichMenuIdToUser(userId, richMenuId) {
+  if (!userId || !richMenuId) return;
   try {
     const res = await fetch(
       `https://api.line.me/v2/bot/user/${encodeURIComponent(userId)}/richmenu/${encodeURIComponent(richMenuId)}`,
@@ -107,12 +108,12 @@ async function linkRichMenuIdToUser(userId, richMenuId) {
     );
     if (!res.ok) {
       const t = await res.text();
-      console.warn("RichMenu link error:", res.status, t);
+      console.warn("RichMenu link (by ID) error:", res.status, t);
     } else {
       console.log(`✅ RichMenu '${richMenuId}' linked to user=${userId}`);
     }
   } catch (e) {
-    console.error("RichMenu link exception:", e);
+    console.error("RichMenu link (by ID) exception:", e);
   }
 }
 
@@ -140,17 +141,8 @@ async function chatWithAiko({ userId, text }) {
   }
 
   const dangerWords = [
-    "死にたい",
-    "消えたい",
-    "自殺",
-    "傷つける",
-    "虐待",
-    "危ない",
-    "首を",
-    "窒息",
-    "飛び降り",
-    "殺す",
-    "自傷",
+    "死にたい", "消えたい", "自殺", "傷つける", "虐待",
+    "危ない", "首を", "窒息", "飛び降り", "殺す", "自傷",
   ];
   const safetyTriggered = dangerWords.some((w) => text.includes(w));
 
@@ -210,7 +202,6 @@ async function handleStripeEvent(event) {
           },
           { merge: true }
         );
-        // 解約予約が付いたら通常、継続ならプレミアム
         await linkRichMenuIdToUser(
           userId,
           willCancel
