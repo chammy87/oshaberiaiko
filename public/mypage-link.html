@@ -1,79 +1,100 @@
 <!doctype html>
 <html lang="ja">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>マイページへ移動中…｜おしゃべりあいこちゃん</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>マイページ｜おしゃべりあいこちゃん</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600&display=swap" rel="stylesheet">
   <style>
-    body{font-family:"Noto Sans JP",system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial;margin:0;color:#222;background:#fff}
-    .wrap{max-width:720px;margin:0 auto;padding:24px 16px}
-    .card{border:1px solid #e8eaf0;border-radius:14px;padding:16px;background:#fff}
-    .muted{color:#636a7a}
-    .btn{display:inline-block;padding:12px 16px;border-radius:12px;border:1px solid #e8eaf0;text-decoration:none;color:#222;font-weight:600;background:#fff}
-    .brand{background:#2f6df6;color:#fff;border-color:#2f6df6}
-    #log{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;font-size:12px;color:#555;white-space:pre-wrap;margin-top:8px}
+    body{font-family:"Noto Sans JP",sans-serif;background:#fff;color:#222;margin:0}
+    header{background:#f8f9ff;text-align:center;padding:20px}
+    header h1{margin:0;font-size:22px;font-weight:700}
+    .wrap{max-width:720px;margin:24px auto;padding:0 16px}
+    .card{border:1px solid #e8eaf0;border-radius:14px;padding:16px}
+    .btn{display:inline-block;padding:12px 18px;border-radius:12px;background:#2f6df6;color:#fff;
+         text-decoration:none;font-weight:600}
+    .btn[disabled]{opacity:.6;pointer-events:none}
+    #log{margin-top:12px;font:12px ui-monospace,Menlo,Consolas,monospace;color:#555;white-space:pre-wrap}
   </style>
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 </head>
 <body>
+  <header><h1>マイページ</h1></header>
   <div class="wrap">
     <div class="card">
-      <h1 style="margin:0 0 8px">マイページへ移動します</h1>
-      <p class="muted">LINEログインを確認中です。自動で遷移しない場合は下のボタンを押してください。</p>
-      <button id="go" class="btn brand">もう一度試す</button>
+      <p>LINEで本人確認後、請求の管理画面（Stripe）へ移動します。</p>
+      <button id="start" class="btn">LINEで続ける</button>
       <div id="log"></div>
     </div>
   </div>
 
   <script>
-    const $ = s => document.querySelector(s);
-    const log = m => { const el = $("#log"); el.textContent = (el.textContent?el.textContent+"\n":"") + m };
+    const $=s=>document.querySelector(s);
+    const log=m=>{ const el=$("#log"); el.textContent+=(el.textContent?"\n":"")+m; };
 
     async function getConfig(){
       const r = await fetch("/api/config",{cache:"no-store"});
-      if(!r.ok) throw new Error("config load failed: "+r.status);
-      return r.json(); // { liffId, liffIdPay?, liffIdMypage? }
+      if(!r.ok) throw new Error("config load failed "+r.status);
+      return r.json(); // { liffId, liffIdMypage, ... }
     }
-
     async function ensureLogin(liffId){
+      log("LIFF init: "+liffId);
       await liff.init({ liffId });
-      log("LIFF 初期化完了 (id=" + liffId + ")");
+      log("LIFF inited");
       if(!liff.isLoggedIn()){
-        log("未ログイン → LINEログインへ遷移");
+        log("Not logged in → redirect");
         liff.login({ redirectUri: location.href });
         return null;
       }
-      const decoded = liff.getDecodedIDToken && liff.getDecodedIDToken();
-      const userId = decoded?.sub;
-      if(!userId){
-        const idToken = liff.getIDToken();
-        if(!idToken) throw new Error("IDトークンを取得できませんでした（LIFFのScopeに openid が必要）");
-        throw new Error("userId を取得できませんでした（decodedIDToken.sub が未取得）");
-      }
-      return userId;
+      const idToken = liff.getIDToken();
+      if(!idToken) throw new Error("IDトークンが取得できません（Scopeに openid が必要）");
+      log("Got idToken");
+      return idToken;
+    }
+    async function resolveUser(idToken){
+      const r = await fetch("/api/resolve-user",{
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ idToken })
+      });
+      const data = await r.json().catch(()=> ({}));
+      if(!r.ok) throw new Error(data?.error || "resolve-user failed");
+      if(!data.userId) throw new Error("userId not returned");
+      log("Resolved userId: "+data.userId);
+      return data.userId;
+    }
+    async function goPortal(userId){
+      const url = `/billing-portal?userId=${encodeURIComponent(userId)}`;
+      log("Go portal: "+url);
+      location.href = url;
     }
 
-    async function run(){
+    async function start(){
+      $("#start").disabled = true;
       try{
-        log("設定を取得中…");
-        const { liffId, liffIdMypage } = await getConfig();
-        const useLiffId = liffIdMypage || liffId; // ★ ここがポイント
-        if(!useLiffId) throw new Error("LIFF_ID が未設定です（/api/config）");
+        log("Load config…");
+        const { liffIdMypage, liffId } = await getConfig();
+        const useId = liffIdMypage || liffId;
+        if(!useId) throw new Error("LIFF_ID_MYPAGE が未設定（/api/config）");
 
-        log("LINEログイン確認中…");
-        const userId = await ensureLogin(useLiffId);
-        if(!userId){ log("LINEログインへ遷移しました…"); return; }
+        log("Ensure login…");
+        const idToken = await ensureLogin(useId);
+        if(!idToken){ log("↪ ログインへ遷移"); return; }
 
-        log("マイページへ移動します");
-        location.replace(`/mypage.html?userId=${encodeURIComponent(userId)}`);
+        log("Resolve user…");
+        const userId = await resolveUser(idToken);
+
+        await goPortal(userId);
       }catch(e){
         console.error(e);
-        log("エラー: " + (e?.message || e));
+        log("ERROR: "+(e?.message||e));
+        alert("マイページに移動できませんでした。LIFF設定と /api/config を確認してください。");
+        $("#start").disabled = false;
       }
     }
-
-    $("#go").addEventListener("click", run);
-    window.addEventListener("DOMContentLoaded", run);
+    $("#start").addEventListener("click", start);
+    // 自動で開始したければ下を有効に
+    // window.addEventListener("DOMContentLoaded", start);
   </script>
 </body>
 </html>
