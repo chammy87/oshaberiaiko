@@ -160,7 +160,7 @@ async function chatWithAiko({ userId, text }) {
   ];
 
   const completion = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
+    model: "gpt-4o",
     messages,
     max_tokens: premium ? 400 : 220,
     temperature: safetyTriggered ? 0.2 : 0.8,
