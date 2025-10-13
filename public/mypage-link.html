@@ -31,13 +31,10 @@
     th,td{text-align:left;padding:8px 4px;border-bottom:1px solid #f2f2f7;font-size:14px;vertical-align:top}
     th{color:#666;width:36%}
     td{color:#222}
-    /* ★ 長い英数字を強制折返し＆安全に収める */
+    /* 長い英数字を折返し */
     .break, .v code, td, .mono{word-break:break-all;overflow-wrap:anywhere}
     /* 等幅フォント（ID表示など） */
     .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
-    /* ログ領域（デフォルト非表示） */
-    #log{display:none;font:12px ui-monospace,Menlo,Consolas,monospace;color:#555;white-space:pre-wrap;background:#f5f5f5;padding:8px;border-radius:6px;max-height:260px;overflow-y:auto;margin-top:8px}
-    .error{color:var(--err);font-weight:700}
     @media (max-width:420px){
       th,td{font-size:13px}
       .btn{font-size:14px}
@@ -58,9 +55,7 @@
       <div class="row">
         <button id="start" class="btn brand">LINEで続ける</button>
         <button id="reload" class="btn" style="display:none">契約状況を更新</button>
-        <button id="toggleLog" class="btn">詳細ログを開く</button>
       </div>
-      <div id="log"></div>
     </div>
 
     <div class="card" id="statusCard" style="display:none">
@@ -93,14 +88,6 @@
 
 <script>
   const $ = (s)=>document.querySelector(s);
-  const log = (m, isError=false)=>{
-    const el=$("#log");
-    const time = new Date().toLocaleTimeString('ja-JP');
-    const prefix = isError ? '❌' : '🔍';
-    const cls = isError ? 'error' : '';
-    el.innerHTML += `<div class="${cls}">[${time}] ${prefix} ${m}</div>`;
-    el.scrollTop = el.scrollHeight;
-  };
   const fmt = (iso)=>{
     if(!iso) return "-";
     try{
@@ -111,12 +98,6 @@
 
   let currentUserId = null;
   let running = false;
-
-  // ログ開閉
-  $("#toggleLog").addEventListener("click",()=>{
-    const box=$("#log");
-    box.style.display = (box.style.display==="none"||!box.style.display) ? "block":"none";
-  });
 
   // クリップボードコピー
   $("#copyUid").addEventListener("click", async ()=>{
@@ -130,7 +111,7 @@
       r.selectNodeContents($("#uid"));
       const s = window.getSelection();
       s.removeAllRanges(); s.addRange(r);
-      alert("コピーできない場合は選択してコピーしてください");
+      alert("コピーできない場合は、選択してコピーしてください");
     }
   });
 
@@ -140,46 +121,58 @@
     return r.json();
   }
 
+  // 期限切れ対策入りのログイン確保
   async function ensureLogin(liffId){
-    log("LIFF init: "+liffId);
     await liff.init({ liffId });
-    await liff.ready; // ← 安定化
-    log("LIFF初期化完了");
+    await liff.ready;
 
+    // 未ログイン → リダイレクト
     if(!liff.isLoggedIn()){
-      log("未ログイン → LINEログインへリダイレクト");
       liff.login({ redirectUri: location.href });
+      return null;
+    }
+
+    // 期限チェック（数秒のバッファで実質即時リフレッシュ）
+    const decoded = liff.getDecodedIDToken?.();
+    if (decoded?.exp && decoded.exp < (Date.now()/1000 + 5)) {
+      // 再ログイン（consentで確実に更新）
+      liff.login({ redirectUri: location.href, prompt: 'consent' });
       return null;
     }
 
     const idToken = liff.getIDToken();
     if(!idToken) throw new Error("IDトークンが取得できません（Scopeに openid が必要）");
-
-    log("✅ IDトークン取得成功 (長さ: "+idToken.length+"文字)");
     return idToken;
   }
 
+  // 401 & "exp"なら一度だけ再ログインで自動回復
   async function resolveUser(idToken){
-    log("ユーザーID解決中…");
-    const r = await fetch("/api/resolve-user",{
-      method:"POST",
-      headers:{ "Content-Type":"application/json" },
-      body: JSON.stringify({ idToken })
-    });
-    const data = await r.json().catch(()=> ({}));
+    const req = async ()=>{
+      const r = await fetch("/api/resolve-user",{
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ idToken })
+      });
+      const data = await r.json().catch(()=> ({}));
+      return { r, data };
+    };
+
+    let { r, data } = await req();
+    if (r.status === 401 && (data?.details || '').includes('"exp"')) {
+      // 一回だけ再ログイン
+      liff.login({ redirectUri: location.href, prompt: 'consent' });
+      return null; // ここで遷移
+    }
+
     if(!r.ok){
-      const errorMsg = data?.error || "resolve-user failed";
-      const details = data?.details || "";
-      const hint = data?.hint || "";
-      throw new Error(`${errorMsg}${details ? ' - '+details : ''}${hint ? ' ('+hint+')' : ''}`);
+      const msg = (data?.error || "resolve-user failed") + (data?.details ? " - " + data.details : "") + (data?.hint ? " ("+data.hint+")" : "");
+      throw new Error(msg);
     }
     if(!data.userId) throw new Error("userId not returned");
-    log("✅ ユーザーID: "+data.userId);
     return data.userId;
   }
 
   async function fetchStatus(userId){
-    log("契約状況を取得中…");
     const r = await fetch(`/api/user/${encodeURIComponent(userId)}`, { cache:"no-store" });
     const data = await r.json().catch(()=> ({}));
     if(!r.ok) throw new Error("status failed " + r.status);
@@ -203,32 +196,28 @@
   async function openPortal(){
     if(!currentUserId) return;
     const url = `/billing-portal?userId=${encodeURIComponent(currentUserId)}`;
-    log("Stripe請求ポータルへ移動: " + url);
     location.href = url;
   }
 
   async function startFlow(){
     if(running) return; running = true;
-    $("#log").innerHTML = "";
     $("#statusCard").style.display = "none";
     $("#reload").style.display = "none";
     $("#start").disabled = true;
 
     try{
-      log("設定読み込み中…");
       const { liffIdMypage, liffId } = await getConfig();
       const useId = liffIdMypage || liffId;
       if(!useId) throw new Error("LIFF_ID_MYPAGE が未設定です。管理者に連絡してください。");
 
-      log("使用するLIFF ID: " + useId);
       const idToken = await ensureLogin(useId);
-      if(!idToken){ log("↪ LINEログインページへ遷移します"); return; }
+      if(!idToken){ return; } // ログインに飛んだ
 
       currentUserId = await resolveUser(idToken);
+      if(!currentUserId){ return; } // 再ログインに飛んだ
       await fetchStatus(currentUserId);
     }catch(e){
       console.error(e);
-      log("エラー: " + (e?.message || e), true);
       alert(
         "マイページの読み込みに失敗しました。\n\n" + (e.message || e) +
         "\n\n（ヒント）LIFFのScopeに `openid` を含め、" +
@@ -251,7 +240,7 @@
   });
   $("#openPortal").addEventListener("click", openPortal);
 
-  // 必要なら自動開始
+  // 自動開始したい場合は下を有効に
   // window.addEventListener("DOMContentLoaded", startFlow);
 </script>
 </body>
