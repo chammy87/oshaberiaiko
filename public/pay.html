@@ -12,15 +12,16 @@
     header h1{font-size:22px;margin:0;font-weight:700}
     header p{color:#555;margin:6px 0 0;font-size:14px}
     .wrap{max-width:720px;margin:24px auto;padding:0 16px}
-    .card{border:1px solid #e8eaf0;border-radius:14px;padding:16px;background:#fff}
-    .btn{display:inline-block;padding:12px 18px;margin:6px;border-radius:12px;text-decoration:none;font-weight:600;cursor:pointer}
+    .card{border:1px solid #e8eaf0;border-radius:14px;padding:16px;background:#fff;margin-bottom:12px}
+    .btn{display:inline-block;padding:12px 18px;margin:6px;border-radius:12px;text-decoration:none;font-weight:600;cursor:pointer;border:none}
     .btn.brand{background:#2f6df6;color:#fff}
     .btn.ghost{background:#fff;border:1px solid #e8eaf0;color:#222}
     .btn[disabled]{opacity:.6;pointer-events:none}
     .muted{color:#636a7a}
-    #log{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;font-size:12px;color:#555;white-space:pre-wrap}
+    #log{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;font-size:12px;color:#555;white-space:pre-wrap;
+         background:#f5f5f5;padding:8px;border-radius:4px;max-height:300px;overflow-y:auto}
+    .error{color:#d32f2f;font-weight:600}
   </style>
-  <!-- ★ SDKは1回だけ -->
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 </head>
 <body>
@@ -28,7 +29,6 @@
     <h1>プレミアム登録</h1>
     <p>LINEでログインして決済へ進みます</p>
   </header>
-
   <div class="wrap">
     <div class="card">
       <p class="muted">「LINEで続ける」を押すと、LINEログイン後に決済ページ（Stripe）へ移動します。</p>
@@ -36,96 +36,126 @@
       <button id="retry" class="btn ghost" style="display:none">もう一度試す</button>
       <div id="log" style="margin-top:8px"></div>
     </div>
-
-    <div class="card" style="margin-top:12px">
+    <div class="card">
       <p class="muted" style="margin:0 0 8px">もし画面が進まない/開かない場合は、外部ブラウザで開いてお試しください。</p>
       <button id="openExternal" class="btn ghost">外部ブラウザでこのページを開く</button>
     </div>
   </div>
-
 <script>
   const $ = s => document.querySelector(s);
-  const log = m => { const el=$("#log"); el.textContent += (el.textContent? "\n":"") + m; };
+  const log = (m, isError=false) => { 
+    const el=$("#log"); 
+    const time = new Date().toLocaleTimeString('ja-JP');
+    const prefix = isError ? '❌' : '🔍';
+    const className = isError ? 'error' : '';
+    el.innerHTML += `<div class="${className}">[${time}] ${prefix} ${m}</div>`;
+    el.scrollTop = el.scrollHeight;
+  };
+  
   const inLINE = /Line\//i.test(navigator.userAgent || "");
-
+  
   async function getConfig(){
     const r = await fetch("/api/config",{cache:"no-store"});
     if(!r.ok) throw new Error("config load failed " + r.status);
-    return r.json(); // { liffId, liffIdPay }
+    return r.json();
   }
-
+  
   async function ensureLogin(liffId){
-    log("LIFF init start: " + liffId);
+    log("LIFF init: " + liffId);
     await liff.init({ liffId });
-    log("LIFF init done");
-
+    log("LIFF初期化完了");
+    
     if (!liff.isLoggedIn()){
-      log("Not logged in → redirect to LINE login");
+      log("未ログイン → LINEログインへリダイレクト");
       liff.login({ redirectUri: location.href });
       return null;
     }
+    
     const idToken = liff.getIDToken();
     if(!idToken) throw new Error("IDトークン取得失敗（Scopeに openid が必要）");
-    log("Got ID token");
+    
+    log("✅ IDトークン取得成功 (長さ: "+idToken.length+"文字)");
     return idToken;
   }
-
+  
   async function createCheckout(idToken){
+    log("決済セッション作成中...");
     const r = await fetch("/create-checkout-session/liff",{
       method:"POST",
       headers:{ "Content-Type":"application/json" },
       body: JSON.stringify({ idToken })
     });
+    
     const data = await r.json().catch(()=> ({}));
-    if(!r.ok) throw new Error(data?.error || "checkout api failed");
+    
+    if(!r.ok) {
+      const errorMsg = data?.error || "checkout api failed";
+      const details = data?.details || "";
+      throw new Error(`${errorMsg}${details ? ' - '+details : ''}`);
+    }
+    
     if(!data.url) throw new Error("checkout url not returned");
+    
+    log("✅ 決済セッション作成完了");
     return data.url;
   }
-
+  
   async function start(){
     const btn = $("#start");
     const retry = $("#retry");
     btn.disabled = true;
     retry.style.display = "none";
-
+    $("#log").innerHTML = "";
+    
     // LINE内で詰まる対策：15秒で外部ブラウザにエスケープ
     let fallbackTimer = null;
+    
     try{
-      log("Load config…");
+      log("設定読み込み中...");
       const { liffId, liffIdPay } = await getConfig();
       const useId = liffIdPay || liffId;
-      if(!useId) throw new Error("LIFF ID 未設定。/api/config を確認してください");
-
+      
+      if(!useId) {
+        throw new Error("LIFF ID 未設定。管理者に連絡してください。");
+      }
+      
+      log("使用するLIFF ID: "+useId);
+      
       if(inLINE && window.liff?.openWindow){
         fallbackTimer = setTimeout(()=>{
-          log("フォールバック起動：外部ブラウザで開き直します…");
+          log("⚠️ タイムアウト：外部ブラウザで開き直します...");
           try{ liff.openWindow({ url: location.href, external: true }); }catch(_){}
         }, 15000);
       }
-
-      log("Ensure login…");
+      
+      log("LINEログイン確認中...");
       const idToken = await ensureLogin(useId);
-      if(!idToken){ log("↪ ログインへ遷移しました"); return; }
-
-      log("Create checkout session…");
+      
+      if(!idToken){ 
+        log("↪ LINEログインページへ遷移します"); 
+        return; 
+      }
+      
       const url = await createCheckout(idToken);
-
+      
       if(fallbackTimer) clearTimeout(fallbackTimer);
-
-      log("Go to Stripe Checkout");
+      
+      log("Stripe Checkoutへ移動します");
       location.href = url;
+      
     }catch(e){
       if(fallbackTimer) clearTimeout(fallbackTimer);
       console.error(e);
-      log("ERROR: " + (e?.message || e));
-      alert("エラーが発生しました。『もう一度試す』か、外部ブラウザでお試しください。");
-      $("#start").disabled = false;
-      $("#retry").style.display = "inline-block";
+      log("エラー: " + (e?.message || e), true);
+      alert("エラーが発生しました。\n\n"+e.message+"\n\n『もう一度試す』か、外部ブラウザでお試しください。");
+      btn.disabled = false;
+      retry.style.display = "inline-block";
     }
   }
-
+  
   $("#start").addEventListener("click", start);
   $("#retry").addEventListener("click", start);
+  
   $("#openExternal").addEventListener("click", async ()=>{
     try{
       const { liffId, liffIdPay } = await getConfig();
@@ -137,8 +167,8 @@
     }catch(_){}
     location.href = location.href;
   });
-
-  // 自動開始したい場合は有効化
+  
+  // 自動開始したい場合は有効化（推奨）
   // window.addEventListener("DOMContentLoaded", start);
 </script>
 </body>
