@@ -60,6 +60,12 @@ async function resolveUserIdFromSub(sub) {
 async function resolveUserIdFromInvoice(inv) {
   if (!inv) return null;
   if (inv.metadata?.userId) return inv.metadata.userId;
+
+  // 安全に subscription line を探索
+  const lineItems = inv?.lines?.data || [];
+  const subLine =
+    lineItems.find((l) => l.type === "subscription") || lineItems[0] || null;
+
   let sub = inv.subscription;
   if (typeof sub === "string") {
     try {
@@ -69,6 +75,7 @@ async function resolveUserIdFromInvoice(inv) {
     }
   }
   if (sub?.metadata?.userId) return sub.metadata.userId;
+
   const customerId =
     typeof inv.customer === "string" ? inv.customer : inv.customer?.id;
   return await resolveUserIdFromCustomerId(customerId);
@@ -93,25 +100,14 @@ function isPremiumFromData(data) {
   return until.getTime() > Date.now();
 }
 
-/* ============ Rich Menu 切替（ID直リンク） ============ */
+/* ============ Rich Menu 切替（SDK利用でfetch不要） ============ */
 async function linkRichMenuIdToUser(userId, richMenuId) {
   if (!userId || !richMenuId) return;
   try {
-    const res = await fetch(
-      `https://api.line.me/v2/bot/user/${encodeURIComponent(userId)}/richmenu/${encodeURIComponent(richMenuId)}`,
-      {
-        method: "POST",
-        headers: { Authorization: `Bearer ${process.env.LINE_CHANNEL_ACCESS_TOKEN}` },
-      }
-    );
-    if (!res.ok) {
-      const t = await res.text();
-      console.warn("RichMenu link (by ID) error:", res.status, t);
-    } else {
-      console.log(`✅ RichMenu '${richMenuId}' linked to user=${userId}`);
-    }
+    await lineClient.linkRichMenuToUser(userId, richMenuId);
+    console.log(`✅ RichMenu '${richMenuId}' linked to user=${userId}`);
   } catch (e) {
-    console.error("RichMenu link (by ID) exception:", e);
+    console.error("RichMenu link error:", e?.response?.data || e.message || e);
   }
 }
 
@@ -138,11 +134,22 @@ async function chatWithAiko({ userId, text }) {
     }
   }
 
+  // 危険語検出：正規化して取りこぼしを減らす
+  const norm = (s) => (s || "").toString().normalize("NFKC").toLowerCase();
   const dangerWords = [
-    "死にたい", "消えたい", "自殺", "傷つける", "虐待",
-    "危ない", "首を", "窒息", "飛び降り", "殺す", "自傷",
-  ];
-  const safetyTriggered = dangerWords.some((w) => text.includes(w));
+    "死にたい",
+    "消えたい",
+    "自殺",
+    "傷つける",
+    "虐待",
+    "危ない",
+    "首を",
+    "窒息",
+    "飛び降り",
+    "殺す",
+    "自傷",
+  ].map((w) => norm(w));
+  const safetyTriggered = dangerWords.some((w) => norm(text).includes(w));
 
   const opener =
     aikoTemplates?.openers?.length && !safetyTriggered
@@ -157,14 +164,21 @@ async function chatWithAiko({ userId, text }) {
     { role: "user", content: text },
   ];
 
-  const completion = await openai.chat.completions.create({
-    model: "gpt-4o",
-    messages,
-    max_tokens: premium ? 400 : 220,
-    temperature: safetyTriggered ? 0.2 : 0.8,
-  });
-  const reply =
-    completion.choices?.[0]?.message?.content?.trim() || "……";
+  // OpenAI失敗時はフォールバックを返し、回数はカウントしない
+  let reply =
+    "いま少し混み合っているみたい…もう一度だけ試してくれる？🙏";
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages,
+      max_tokens: premium ? 400 : 220,
+      temperature: safetyTriggered ? 0.2 : 0.8,
+    });
+    reply = completion.choices?.[0]?.message?.content?.trim() || "……";
+  } catch (e) {
+    console.error("OpenAI error:", e);
+    return { reply, premium, limited: false };
+  }
 
   if (!premium) {
     await usageRef.set(
@@ -203,8 +217,8 @@ async function handleStripeEvent(event) {
         await linkRichMenuIdToUser(
           userId,
           willCancel
-            ? (process.env.RICHMENU_ID_REGULAR || "")
-            : (process.env.RICHMENU_ID_PREMIUM || "")
+            ? process.env.RICHMENU_ID_REGULAR || ""
+            : process.env.RICHMENU_ID_PREMIUM || ""
         );
       }
       break;
@@ -260,8 +274,14 @@ async function handleStripeEvent(event) {
     case "invoice.payment_succeeded": {
       const inv = event.data.object;
       const userId = await resolveUserIdFromInvoice(inv);
+
+      // lineアイテムから期間終了を堅牢に取得
+      const lineItems = inv?.lines?.data || [];
+      const subLine =
+        lineItems.find((l) => l.type === "subscription") || lineItems[0] || {};
       const periodEndSec =
-        inv?.lines?.data?.[0]?.period?.end || inv?.period_end || null;
+        subLine?.period?.end || inv?.period_end || null;
+
       if (userId && periodEndSec) {
         await db.collection("users").doc(userId).set(
           { premium: true, premiumUntil: tsFromSec(periodEndSec) },
@@ -308,7 +328,7 @@ async function handleStripeEvent(event) {
    🚨 重要：Stripe Webhook は express.json() よりも前に定義
    =========================================================== */
 
-// 本番/ダッシュボードのWebhook
+// 本番/ダッシュボードのWebhook（先にロック→処理→完了の順）
 app.post(
   "/webhook",
   express.raw({ type: "application/json" }),
@@ -321,18 +341,6 @@ app.post(
     console.log("[WB] isBuffer:", Buffer.isBuffer(req.body), "len:", req.body?.length);
     console.log("[WB] content-type:", req.headers["content-type"]);
 
-    const runtimeWhsec = process.env.STRIPE_WEBHOOK_SECRET || "";
-    console.log(
-      "[WB] env whsec preview:",
-      runtimeWhsec.startsWith("whsec_"),
-      "len=",
-      runtimeWhsec.length,
-      "head=",
-      runtimeWhsec.slice(0, 8),
-      "tail=",
-      runtimeWhsec.slice(-4)
-    );
-
     if (!sig) {
       console.warn("🚫 Non-Stripe access to /webhook");
       return res.status(403).send("forbidden");
@@ -344,12 +352,20 @@ app.post(
 
       const seenRef = db.collection("stripe_events").doc(event.id);
       const seen = await seenRef.get();
-      if (seen.exists) return;
+      if (seen.exists && (seen.data()?.processedAt || seen.data()?.lockedAt)) return;
+
+      // 先にロックを書き込む
+      await seenRef.set(
+        { lockedAt: admin.firestore.FieldValue.serverTimestamp(), type: event.type },
+        { merge: true }
+      );
 
       await handleStripeEvent(event);
-      await seenRef.set({
-        processedAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
+
+      await seenRef.set(
+        { processedAt: admin.firestore.FieldValue.serverTimestamp() },
+        { merge: true }
+      );
     } catch (err) {
       console.error("❌ 本番Webhook署名エラー:", err.message);
       if (!res.headersSent) res.status(400).send("bad signature");
@@ -357,7 +373,7 @@ app.post(
   }
 );
 
-// Stripe CLI専用のWebhook
+// Stripe CLI専用のWebhook（同様にロック→処理→完了）
 app.post(
   "/webhook-cli",
   express.raw({ type: "application/json" }),
@@ -374,13 +390,20 @@ app.post(
 
       const seenRef = db.collection("stripe_events").doc(event.id);
       const seen = await seenRef.get();
-      if (seen.exists) return;
+      if (seen.exists && (seen.data()?.processedAt || seen.data()?.lockedAt)) return;
+
+      await seenRef.set(
+        { lockedAt: admin.firestore.FieldValue.serverTimestamp(), type: event.type },
+        { merge: true }
+      );
 
       console.log("✅ CLI Webhook受信:", event.type);
       await handleStripeEvent(event);
-      await seenRef.set({
-        processedAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
+
+      await seenRef.set(
+        { processedAt: admin.firestore.FieldValue.serverTimestamp() },
+        { merge: true }
+      );
     } catch (err) {
       console.error("❌ CLI署名検証エラー:", err.message);
       if (!res.headersSent) res.status(400).send("bad signature");
@@ -421,9 +444,8 @@ const LINE_JWKS = createRemoteJWKSet(
 
 async function verifyLineIdToken(idToken) {
   try {
-    // ★ 修正：audienceにはChannel ID（数値文字列）を使用
+    // ★ 修正：audienceにはChannel ID（数値文字列）を使用 + clockTolerance
     const channelId = process.env.LINE_LOGIN_CHANNEL_ID;
-    
     if (!channelId) {
       throw new Error("LINE_LOGIN_CHANNEL_ID not configured");
     }
@@ -432,27 +454,28 @@ async function verifyLineIdToken(idToken) {
 
     const { payload } = await jwtVerify(idToken, LINE_JWKS, {
       issuer: LINE_ISSUER,
-      audience: channelId, // Channel ID（数値）を使用
+      audience: channelId,
+      clockTolerance: 60, // 端末時刻ズレ耐性
     });
-    
+
     console.log("✅ ID Token verified successfully");
     console.log("   - User ID (sub):", payload.sub);
     console.log("   - Audience:", payload.aud);
     console.log("   - Issued at:", new Date(payload.iat * 1000).toISOString());
-    
+
     return payload; // payload.sub が LINE の userId
   } catch (error) {
     console.error("❌ ID Token verification failed:");
     console.error("   - Error name:", error.name);
     console.error("   - Error message:", error.message);
     console.error("   - Error code:", error.code);
-    
+
     // デバッグ用：トークンの情報を出力（本番では削除推奨）
     if (idToken) {
       try {
-        const parts = idToken.split('.');
+        const parts = idToken.split(".");
         if (parts.length === 3) {
-          const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+          const payload = JSON.parse(Buffer.from(parts[1], "base64").toString());
           console.error("   - Token audience:", payload.aud);
           console.error("   - Token issuer:", payload.iss);
           console.error("   - Token expiry:", new Date(payload.exp * 1000).toISOString());
@@ -461,7 +484,7 @@ async function verifyLineIdToken(idToken) {
         console.error("   - Could not decode token for debugging");
       }
     }
-    
+
     throw error;
   }
 }
@@ -480,23 +503,26 @@ app.post("/api/resolve-user", express.json(), async (req, res) => {
   try {
     const { idToken } = req.body || {};
     console.log("🔍 /api/resolve-user called");
-    console.log("   - ID Token received:", idToken ? "YES (length: " + idToken.length + ")" : "NO");
-    
+    console.log(
+      "   - ID Token received:",
+      idToken ? "YES (length: " + idToken.length + ")" : "NO"
+    );
+
     if (!idToken) {
       console.warn("⚠️ Missing idToken in request");
       return res.status(400).json({ error: "missing idToken" });
     }
-    
+
     const payload = await verifyLineIdToken(idToken);
     console.log("✅ User resolved:", payload.sub);
-    
+
     return res.json({ userId: payload.sub });
   } catch (e) {
     console.error("❌ /api/resolve-user error:", e.message);
-    return res.status(401).json({ 
+    return res.status(401).json({
       error: "invalid_token",
       details: e.message,
-      hint: "LIFF設定とLINE_LOGIN_CHANNEL_IDを確認してください"
+      hint: "LIFF設定とLINE_LOGIN_CHANNEL_IDを確認してください",
     });
   }
 });
@@ -507,7 +533,7 @@ app.post("/create-checkout-session/liff", express.json(), async (req, res) => {
     const { idToken } = req.body || {};
     console.log("🔍 /create-checkout-session/liff called");
     console.log("   - ID Token received:", idToken ? "YES" : "NO");
-    
+
     if (!idToken) {
       console.warn("⚠️ Missing idToken in checkout request");
       return res.status(400).json({ error: "missing idToken" });
@@ -526,14 +552,14 @@ app.post("/create-checkout-session/liff", express.json(), async (req, res) => {
       metadata: { userId },
       subscription_data: { metadata: { userId } },
     });
-    
+
     console.log("✅ Checkout session created:", session.id);
     return res.json({ url: session.url });
   } catch (e) {
     console.error("❌ LIFF checkout error:", e.message);
-    return res.status(401).json({ 
+    return res.status(401).json({
       error: "invalid_token",
-      details: e.message 
+      details: e.message,
     });
   }
 });
@@ -547,17 +573,34 @@ app.use(express.static("public"));
 app.post("/admin/switch-richmenu", express.json(), async (req, res) => {
   try {
     const { userId, plan, key } = { ...req.query, ...req.body };
-    if (!key || key !== process.env.ADMIN_KEY) return res.status(403).json({ error: "forbidden" });
-    if (!userId || !plan) return res.status(400).json({ error: "missing userId or plan" });
+    if (!key || key !== process.env.ADMIN_KEY)
+      return res.status(403).json({ error: "forbidden" });
+    if (!userId || !plan)
+      return res.status(400).json({ error: "missing userId or plan" });
 
     const richMenuId =
       plan === "premium"
-        ? (process.env.RICHMENU_ID_PREMIUM || "")
-        : (process.env.RICHMENU_ID_REGULAR || "");
+        ? process.env.RICHMENU_ID_PREMIUM || ""
+        : process.env.RICHMENU_ID_REGULAR || "";
 
-    if (!richMenuId) return res.status(400).json({ error: "missing richmenu id env" });
+    if (!richMenuId)
+      return res.status(400).json({ error: "missing richmenu id env" });
 
     await linkRichMenuIdToUser(userId, richMenuId);
+
+    // 監査ログ（任意）
+    try {
+      await db.collection("admin_actions").add({
+        action: "switch-richmenu",
+        at: admin.firestore.FieldValue.serverTimestamp(),
+        userId,
+        plan,
+        ip: req.ip,
+      });
+    } catch (e) {
+      console.warn("audit log failed:", e.message);
+    }
+
     res.json({ ok: true, linked: richMenuId, userId });
   } catch (e) {
     console.error(e);
@@ -586,9 +629,10 @@ app.get("/billing-portal", async (req, res) => {
     if (!stripeCustomerId) return res.status(400).send("customer not linked");
 
     const base = process.env.PUBLIC_ORIGIN || "https://www.oshaberiaiko.com";
+    // ★ ここを mypage-link.html に統一
     const session = await stripe.billingPortal.sessions.create({
       customer: stripeCustomerId,
-      return_url: `${base}/mypage.html?userId=${encodeURIComponent(userId)}`,
+      return_url: `${base}/mypage-link.html?userId=${encodeURIComponent(userId)}`,
     });
     res.redirect(302, session.url);
   } catch (e) {
@@ -621,7 +665,7 @@ app.get("/api/user/:id", async (req, res) => {
 
 app.post("/create-checkout-session", async (req, res) => {
   try {
-    const userId = req.body.userId || "demo-user";
+    const userId = req.body?.userId || "demo-user";
     const base = process.env.PUBLIC_ORIGIN || "https://www.oshaberiaiko.com";
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
