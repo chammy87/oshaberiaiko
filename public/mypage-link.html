@@ -12,9 +12,12 @@
     .wrap{max-width:720px;margin:24px auto;padding:0 16px}
     .card{border:1px solid #e8eaf0;border-radius:14px;padding:16px}
     .btn{display:inline-block;padding:12px 18px;border-radius:12px;background:#2f6df6;color:#fff;
-         text-decoration:none;font-weight:600}
+         text-decoration:none;font-weight:600;border:none;cursor:pointer}
     .btn[disabled]{opacity:.6;pointer-events:none}
-    #log{margin-top:12px;font:12px ui-monospace,Menlo,Consolas,monospace;color:#555;white-space:pre-wrap}
+    #log{margin-top:12px;font:12px ui-monospace,Menlo,Consolas,monospace;color:#555;white-space:pre-wrap;
+         background:#f5f5f5;padding:8px;border-radius:4px;max-height:300px;overflow-y:auto}
+    .error{color:#d32f2f;font-weight:600}
+    .success{color:#2e7d32;font-weight:600}
   </style>
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 </head>
@@ -27,74 +30,8 @@
       <div id="log"></div>
     </div>
   </div>
-
   <script>
     const $=s=>document.querySelector(s);
-    const log=m=>{ const el=$("#log"); el.textContent+=(el.textContent?"\n":"")+m; };
-
-    async function getConfig(){
-      const r = await fetch("/api/config",{cache:"no-store"});
-      if(!r.ok) throw new Error("config load failed "+r.status);
-      return r.json(); // { liffId, liffIdMypage, ... }
-    }
-    async function ensureLogin(liffId){
-      log("LIFF init: "+liffId);
-      await liff.init({ liffId });
-      log("LIFF inited");
-      if(!liff.isLoggedIn()){
-        log("Not logged in → redirect");
-        liff.login({ redirectUri: location.href });
-        return null;
-      }
-      const idToken = liff.getIDToken();
-      if(!idToken) throw new Error("IDトークンが取得できません（Scopeに openid が必要）");
-      log("Got idToken");
-      return idToken;
-    }
-    async function resolveUser(idToken){
-      const r = await fetch("/api/resolve-user",{
-        method:"POST",
-        headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({ idToken })
-      });
-      const data = await r.json().catch(()=> ({}));
-      if(!r.ok) throw new Error(data?.error || "resolve-user failed");
-      if(!data.userId) throw new Error("userId not returned");
-      log("Resolved userId: "+data.userId);
-      return data.userId;
-    }
-    async function goPortal(userId){
-      const url = `/billing-portal?userId=${encodeURIComponent(userId)}`;
-      log("Go portal: "+url);
-      location.href = url;
-    }
-
-    async function start(){
-      $("#start").disabled = true;
-      try{
-        log("Load config…");
-        const { liffIdMypage, liffId } = await getConfig();
-        const useId = liffIdMypage || liffId;
-        if(!useId) throw new Error("LIFF_ID_MYPAGE が未設定（/api/config）");
-
-        log("Ensure login…");
-        const idToken = await ensureLogin(useId);
-        if(!idToken){ log("↪ ログインへ遷移"); return; }
-
-        log("Resolve user…");
-        const userId = await resolveUser(idToken);
-
-        await goPortal(userId);
-      }catch(e){
-        console.error(e);
-        log("ERROR: "+(e?.message||e));
-        alert("マイページに移動できませんでした。LIFF設定と /api/config を確認してください。");
-        $("#start").disabled = false;
-      }
-    }
-    $("#start").addEventListener("click", start);
-    // 自動で開始したければ下を有効に
-    // window.addEventListener("DOMContentLoaded", start);
-  </script>
-</body>
-</html>
+    const log=m=>{ 
+      const el=$("#log"); 
+      const time = new Date().toLocaleTime
