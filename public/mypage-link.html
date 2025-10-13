@@ -13,8 +13,14 @@
     *{box-sizing:border-box}
     body{font-family:"Noto Sans JP",system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial;color:#222;margin:0;background:var(--bg)}
     header{padding:0;text-align:center;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.05)}
-    header img{width:100%;max-width:520px;display:block;margin:0 auto;border-bottom:2px solid #f0f2fa}
-    header h1{font-size:20px;font-weight:700;margin:12px 0}
+    header img{
+      width: min(90vw, 340px);   /* 画面幅の90%か340pxの小さい方 */
+      height: auto;
+      display:block;
+      margin: 0 auto;
+      border-bottom: 2px solid #f0f2fa;
+    }
+    header h1{font-size:20px;font-weight:700;margin:10px 0 6px}
     main{max-width:760px;margin:0 auto;padding:20px 16px 40px}
     .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px 18px;box-shadow:0 2px 8px rgba(0,0,0,.04);margin-bottom:16px}
     .row{display:flex;gap:10px;flex-wrap:wrap}
@@ -216,6 +222,10 @@
       currentUserId = await resolveUser(idToken);
       if(!currentUserId){ return; } // 再ログインに飛んだ
       await fetchStatus(currentUserId);
+      
+      // ログイン済みで表示も完了 → ボタンを隠す（任意）
+      document.getElementById("start").style.display = "none";
+      document.getElementById("reload").style.display = "inline-flex";
     }catch(e){
       console.error(e);
       alert(
@@ -240,8 +250,8 @@
   });
   $("#openPortal").addEventListener("click", openPortal);
 
-  // 自動開始したい場合は下を有効に
-  // window.addEventListener("DOMContentLoaded", startFlow);
+  // ログイン復帰後に自動で状態を読む（ユーザーの再タップ不要）
+  window.addEventListener("DOMContentLoaded", startFlow);
 </script>
 </body>
 </html>
