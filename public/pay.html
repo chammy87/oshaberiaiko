@@ -18,8 +18,7 @@
     .btn.ghost{background:#fff;border:1px solid #e8eaf0;color:#222}
     .btn[disabled]{opacity:.6;pointer-events:none}
     .muted{color:#636a7a}
-    #log{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;font-size:12px;color:#555;white-space:pre-wrap;
-         background:#f5f5f5;padding:8px;border-radius:4px;max-height:300px;overflow-y:auto}
+    #log{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;font-size:12px;color:#555;white-space:pre-wrap;background:#f5f5f5;padding:8px;border-radius:4px;max-height:300px;overflow-y:auto}
     .error{color:#d32f2f;font-weight:600}
   </style>
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
@@ -53,7 +52,44 @@
   };
   
   const inLINE = /Line\//i.test(navigator.userAgent || "");
-  
+  let running = false; // 多重実行防止
+  const RECIPE_APP_URL = "https://menu-planner-express.onrender.com";
+
+  // ⚡ 起動時チェック：プレミアムなら即レシピへ（迷い込み対策）
+  (async () => {
+    try{
+      const cfgRes = await fetch("/api/config", {cache:"no-store"});
+      if(!cfgRes.ok) return;
+      const cfg = await cfgRes.json();
+      const liffId = cfg.liffIdPay || cfg.liffId;
+      if(!liffId) return;
+
+      await liff.init({ liffId });
+      await liff.ready;
+      if(!liff.isLoggedIn()) return; // ログイン導線はstart()に任せる
+
+      const idToken = liff.getIDToken();
+      if(!idToken) return;
+
+      const resUser = await fetch("/api/resolve-user",{
+        method:"POST", headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ idToken })
+      });
+      if(!resUser.ok) return;
+      const { userId } = await resUser.json();
+      if(!userId) return;
+
+      const stRes = await fetch(`/api/user/${encodeURIComponent(userId)}`, { cache:"no-store" });
+      if(!stRes.ok) return;
+      const st = await stRes.json();
+
+      if(st?.premium){
+        log("✅ すでにプレミアム会員です。レシピアプリへ転送します。");
+        location.replace(RECIPE_APP_URL);
+      }
+    }catch(_){}
+  })();
+
   async function getConfig(){
     const r = await fetch("/api/config",{cache:"no-store"});
     if(!r.ok) throw new Error("config load failed " + r.status);
@@ -63,6 +99,7 @@
   async function ensureLogin(liffId){
     log("LIFF init: " + liffId);
     await liff.init({ liffId });
+    await liff.ready; // 安定化
     log("LIFF初期化完了");
     
     if (!liff.isLoggedIn()){
@@ -89,6 +126,12 @@
     const data = await r.json().catch(()=> ({}));
     
     if(!r.ok) {
+      // 409 = すでにプレミアム → レシピアプリへ
+      if(r.status === 409 && data?.redirectUrl){
+        log("✅ すでにプレミアム会員です。レシピアプリへ移動します。");
+        location.href = data.redirectUrl;
+        return null;
+      }
       const errorMsg = data?.error || "checkout api failed";
       const details = data?.details || "";
       throw new Error(`${errorMsg}${details ? ' - '+details : ''}`);
@@ -101,6 +144,9 @@
   }
   
   async function start(){
+    if(running) return;
+    running = true;
+
     const btn = $("#start");
     const retry = $("#retry");
     btn.disabled = true;
@@ -114,10 +160,7 @@
       log("設定読み込み中...");
       const { liffId, liffIdPay } = await getConfig();
       const useId = liffIdPay || liffId;
-      
-      if(!useId) {
-        throw new Error("LIFF ID 未設定。管理者に連絡してください。");
-      }
+      if(!useId) throw new Error("LIFF ID 未設定。管理者に連絡してください。");
       
       log("使用するLIFF ID: "+useId);
       
@@ -130,26 +173,30 @@
       
       log("LINEログイン確認中...");
       const idToken = await ensureLogin(useId);
-      
       if(!idToken){ 
         log("↪ LINEログインページへ遷移します"); 
         return; 
       }
       
       const url = await createCheckout(idToken);
-      
-      if(fallbackTimer) clearTimeout(fallbackTimer);
-      
-      log("Stripe Checkoutへ移動します");
-      location.href = url;
+      if(url){ // null の場合は409でレシピに遷移済み
+        if(fallbackTimer) clearTimeout(fallbackTimer);
+        log("✅ Stripe Checkoutへ移動します");
+        location.href = url;
+      }
       
     }catch(e){
       if(fallbackTimer) clearTimeout(fallbackTimer);
       console.error(e);
       log("エラー: " + (e?.message || e), true);
-      alert("エラーが発生しました。\n\n"+e.message+"\n\n『もう一度試す』か、外部ブラウザでお試しください。");
+      alert(
+        "エラーが発生しました。\n\n" + (e.message || e)
+        + "\n\n（ヒント）LIFFのScopeに `openid` を含め、"
+        + "LINEログインチャネルIDとサーバの `LINE_LOGIN_CHANNEL_ID` が一致しているか確認してください。"
+      );
       btn.disabled = false;
       retry.style.display = "inline-block";
+      running = false;
     }
   }
   
@@ -162,10 +209,18 @@
       const useId = liffIdPay || liffId;
       if(inLINE && window.liff){
         await liff.init({ liffId: useId });
+        await liff.ready;
         return liff.openWindow({ url: location.href, external: true });
       }
     }catch(_){}
     location.href = location.href;
+  });
+
+  // 初期表示でボタン文言を分岐（LINE外では“再読み込み”に）
+  window.addEventListener("DOMContentLoaded", ()=>{
+    if(!inLINE){
+      $("#openExternal").textContent = "このページを再読み込み";
+    }
   });
   
   // 自動開始したい場合は有効化（推奨）
