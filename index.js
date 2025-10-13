@@ -94,8 +94,6 @@ function isPremiumFromData(data) {
 }
 
 /* ============ Rich Menu 切替（ID直リンク） ============ */
-// userId: LINEのユーザーID（U...）
-// richMenuId: "richmenu-xxxxxxxx..."（実ID）
 async function linkRichMenuIdToUser(userId, richMenuId) {
   if (!userId || !richMenuId) return;
   try {
@@ -422,11 +420,50 @@ const LINE_JWKS = createRemoteJWKSet(
 );
 
 async function verifyLineIdToken(idToken) {
-  const { payload } = await jwtVerify(idToken, LINE_JWKS, {
-    issuer: LINE_ISSUER,
-    audience: process.env.LINE_LOGIN_CHANNEL_ID, // ログインチャネルのChannel ID（数値）
-  });
-  return payload; // payload.sub が LINE の userId
+  try {
+    // ★ 修正：audienceにはChannel ID（数値文字列）を使用
+    const channelId = process.env.LINE_LOGIN_CHANNEL_ID;
+    
+    if (!channelId) {
+      throw new Error("LINE_LOGIN_CHANNEL_ID not configured");
+    }
+
+    console.log("🔍 Verifying ID token with channelId:", channelId);
+
+    const { payload } = await jwtVerify(idToken, LINE_JWKS, {
+      issuer: LINE_ISSUER,
+      audience: channelId, // Channel ID（数値）を使用
+    });
+    
+    console.log("✅ ID Token verified successfully");
+    console.log("   - User ID (sub):", payload.sub);
+    console.log("   - Audience:", payload.aud);
+    console.log("   - Issued at:", new Date(payload.iat * 1000).toISOString());
+    
+    return payload; // payload.sub が LINE の userId
+  } catch (error) {
+    console.error("❌ ID Token verification failed:");
+    console.error("   - Error name:", error.name);
+    console.error("   - Error message:", error.message);
+    console.error("   - Error code:", error.code);
+    
+    // デバッグ用：トークンの情報を出力（本番では削除推奨）
+    if (idToken) {
+      try {
+        const parts = idToken.split('.');
+        if (parts.length === 3) {
+          const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+          console.error("   - Token audience:", payload.aud);
+          console.error("   - Token issuer:", payload.iss);
+          console.error("   - Token expiry:", new Date(payload.exp * 1000).toISOString());
+        }
+      } catch (e) {
+        console.error("   - Could not decode token for debugging");
+      }
+    }
+    
+    throw error;
+  }
 }
 
 // 公開設定を返す（LIFF ID）
@@ -442,12 +479,25 @@ app.get("/api/config", (_req, res) => {
 app.post("/api/resolve-user", express.json(), async (req, res) => {
   try {
     const { idToken } = req.body || {};
-    if (!idToken) return res.status(400).json({ error: "missing idToken" });
+    console.log("🔍 /api/resolve-user called");
+    console.log("   - ID Token received:", idToken ? "YES (length: " + idToken.length + ")" : "NO");
+    
+    if (!idToken) {
+      console.warn("⚠️ Missing idToken in request");
+      return res.status(400).json({ error: "missing idToken" });
+    }
+    
     const payload = await verifyLineIdToken(idToken);
+    console.log("✅ User resolved:", payload.sub);
+    
     return res.json({ userId: payload.sub });
   } catch (e) {
-    console.error("resolve-user error:", e);
-    return res.status(401).json({ error: "invalid_token" });
+    console.error("❌ /api/resolve-user error:", e.message);
+    return res.status(401).json({ 
+      error: "invalid_token",
+      details: e.message,
+      hint: "LIFF設定とLINE_LOGIN_CHANNEL_IDを確認してください"
+    });
   }
 });
 
@@ -455,10 +505,17 @@ app.post("/api/resolve-user", express.json(), async (req, res) => {
 app.post("/create-checkout-session/liff", express.json(), async (req, res) => {
   try {
     const { idToken } = req.body || {};
-    if (!idToken) return res.status(400).json({ error: "missing idToken" });
+    console.log("🔍 /create-checkout-session/liff called");
+    console.log("   - ID Token received:", idToken ? "YES" : "NO");
+    
+    if (!idToken) {
+      console.warn("⚠️ Missing idToken in checkout request");
+      return res.status(400).json({ error: "missing idToken" });
+    }
 
     const payload = await verifyLineIdToken(idToken);
     const userId = payload.sub;
+    console.log("✅ Creating checkout for user:", userId);
 
     const base = process.env.PUBLIC_ORIGIN || "https://www.oshaberiaiko.com";
     const session = await stripe.checkout.sessions.create({
@@ -469,10 +526,15 @@ app.post("/create-checkout-session/liff", express.json(), async (req, res) => {
       metadata: { userId },
       subscription_data: { metadata: { userId } },
     });
+    
+    console.log("✅ Checkout session created:", session.id);
     return res.json({ url: session.url });
   } catch (e) {
-    console.error("LIFF checkout error:", e);
-    return res.status(401).json({ error: "invalid_token" });
+    console.error("❌ LIFF checkout error:", e.message);
+    return res.status(401).json({ 
+      error: "invalid_token",
+      details: e.message 
+    });
   }
 });
 
@@ -482,7 +544,6 @@ app.use(express.json());
 app.use(express.static("public"));
 
 /* ======================== 管理用：手動リッチメニュー切替（任意） ======================== */
-// /admin/switch-richmenu  body or query: { userId, plan: "premium"|"regular", key }
 app.post("/admin/switch-richmenu", express.json(), async (req, res) => {
   try {
     const { userId, plan, key } = { ...req.query, ...req.body };
