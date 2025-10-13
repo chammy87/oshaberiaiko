@@ -3,135 +3,230 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>マイページ｜おしゃべりあいこちゃん</title>
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600&display=swap" rel="stylesheet">
+  <title>マイページ（契約状況プレビュー）｜おしゃべりあいこちゃん</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
-    body{font-family:"Noto Sans JP",sans-serif;background:#fff;color:#222;margin:0}
-    header{background:#f8f9ff;text-align:center;padding:20px}
-    header h1{margin:0;font-size:22px;font-weight:700}
-    .wrap{max-width:720px;margin:24px auto;padding:0 16px}
-    .card{border:1px solid #e8eaf0;border-radius:14px;padding:16px}
-    .btn{display:inline-block;padding:12px 18px;border-radius:12px;background:#2f6df6;color:#fff;
-         text-decoration:none;font-weight:600;border:none;cursor:pointer}
+    :root{
+      --brand:#2f6df6; --border:#e8eaf0; --muted:#636a7a; --bg:#fff; --card:#fff; --chip:#f1f5ff;
+      --ok:#2e7d32; --warn:#f57c00; --err:#d32f2f;
+    }
+    *{box-sizing:border-box}
+    body{font-family:"Noto Sans JP",system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial;color:#222;margin:0;background:var(--bg)}
+    header{padding:20px;text-align:center;background:#f8f9ff;border-bottom:1px solid var(--border)}
+    header h1{font-size:22px;margin:0;font-weight:700}
+    header p{color:#555;margin:6px 0 0;font-size:14px}
+    .wrap{max-width:760px;margin:24px auto;padding:0 16px}
+    .card{border:1px solid var(--border);border-radius:14px;padding:16px;background:var(--card);margin-bottom:12px}
+    .row{display:flex;gap:12px;flex-wrap:wrap}
+    .btn{display:inline-flex;align-items:center;gap:6px;padding:12px 16px;border-radius:12px;text-decoration:none;font-weight:700;cursor:pointer;border:1px solid var(--border);background:#fff}
+    .btn.brand{background:var(--brand);color:#fff;border-color:var(--brand)}
+    .btn.ghost{background:#fff;color:#222}
     .btn[disabled]{opacity:.6;pointer-events:none}
-    #log{margin-top:12px;font:12px ui-monospace,Menlo,Consolas,monospace;color:#555;white-space:pre-wrap;
-         background:#f5f5f5;padding:8px;border-radius:4px;max-height:300px;overflow-y:auto}
-    .error{color:#d32f2f;font-weight:600}
-    .success{color:#2e7d32;font-weight:600}
+    .muted{color:var(--muted)}
+    .kvs{display:grid;grid-template-columns:140px 1fr;gap:8px 12px;margin-top:8px}
+    .k{color:#555}
+    .v code{background:#f5f5f5;border-radius:6px;padding:2px 6px}
+    .chip{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:var(--chip);font-weight:700}
+    .chip.ok{background:#e8f5e9;color:var(--ok)}
+    .chip.warn{background:#fff3e0;color:var(--warn)}
+    .chip.err{background:#ffebee;color:var(--err)}
+    #log{font:12px ui-monospace,Menlo,Consolas,monospace;color:#555;white-space:pre-wrap;background:#f5f5f5;padding:8px;border-radius:6px;max-height:280px;overflow-y:auto}
+    .error{color:var(--err);font-weight:700}
+    .sep{height:1px;background:var(--border);margin:12px 0}
   </style>
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 </head>
 <body>
-  <header><h1>マイページ</h1></header>
+  <header>
+    <h1>マイページ</h1>
+    <p class="muted">現在の契約状況を確認してから、請求管理画面（Stripe）へ進めます。</p>
+  </header>
+
   <div class="wrap">
-    <div class="card">
-      <p>LINEで本人確認後、請求の管理画面（Stripe）へ移動します。</p>
-      <button id="start" class="btn">LINEで続ける</button>
-      <div id="log"></div>
+    <div class="card" id="authCard">
+      <p class="muted" id="authHint">「LINEで続ける」を押して本人確認を行います。</p>
+      <div class="row">
+        <button id="start" class="btn brand">LINEで続ける</button>
+        <button id="reload" class="btn ghost" style="display:none">契約状況を更新</button>
+      </div>
+      <div id="log" style="margin-top:8px"></div>
+    </div>
+
+    <div class="card" id="statusCard" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+        <h2 style="margin:0;font-size:18px">契約ステータス</h2>
+        <span id="statusChip" class="chip">読み込み中…</span>
+      </div>
+      <div class="kvs">
+        <div class="k">ユーザーID</div><div class="v"><code id="uid">-</code></div>
+        <div class="k">ステータス</div><div class="v" id="premium">-</div>
+        <div class="k">開始日時</div><div class="v" id="premiumSince">-</div>
+        <div class="k">有効期限</div><div class="v" id="premiumUntil">-</div>
+        <div class="k">解約予約</div><div class="v" id="cancelPending">-</div>
+        <div class="k">解約予定日</div><div class="v" id="cancelAt">-</div>
+      </div>
+      <div class="sep"></div>
+      <div class="row">
+        <button id="openPortal" class="btn brand">請求ポータルを開く</button>
+        <button id="reload2" class="btn ghost">再取得</button>
+      </div>
+      <p class="muted" style="margin-top:8px">※ ポータルでは支払い方法の変更、解約/再開、請求履歴の確認ができます。</p>
     </div>
   </div>
-  <script>
-    const $=s=>document.querySelector(s);
-    const log=(m,isError=false)=>{ 
-      const el=$("#log"); 
-      const time = new Date().toLocaleTimeString('ja-JP');
-      const prefix = isError ? '❌' : '🔍';
-      const className = isError ? 'error' : '';
-      el.innerHTML += `<div class="${className}">[${time}] ${prefix} ${m}</div>`;
-      el.scrollTop = el.scrollHeight;
-    };
-    
-    async function getConfig(){
-      const r = await fetch("/api/config",{cache:"no-store"});
-      if(!r.ok) throw new Error("config load failed "+r.status);
-      return r.json();
+
+<script>
+  const $ = (s)=>document.querySelector(s);
+  const inLINE = /Line\//i.test(navigator.userAgent || "");
+  let currentUserId = null;
+  let running = false;
+
+  const log = (m, isError=false)=>{
+    const el=$("#log");
+    const time = new Date().toLocaleTimeString('ja-JP');
+    const prefix = isError ? '❌' : '🔍';
+    const className = isError ? 'error' : '';
+    el.innerHTML += `<div class="${className}">[${time}] ${prefix} ${m}</div>`;
+    el.scrollTop = el.scrollHeight;
+  };
+
+  const fmt = (iso)=>{
+    if(!iso) return "-";
+    try{
+      const d = new Date(iso); // ISO from API (UTC)
+      // 表示は日本時間
+      return new Intl.DateTimeFormat('ja-JP', {
+        timeZone: 'Asia/Tokyo',
+        year:'numeric', month:'2-digit', day:'2-digit',
+        hour:'2-digit', minute:'2-digit'
+      }).format(d).replace(/\//g, '-');
+    }catch{ return iso; }
+  };
+
+  async function getConfig(){
+    const r = await fetch("/api/config",{cache:"no-store"});
+    if(!r.ok) throw new Error("config load failed "+r.status);
+    return r.json();
+  }
+
+  async function ensureLogin(liffId){
+    log("LIFF init: " + liffId);
+    await liff.init({ liffId });
+    await liff.ready;
+    log("LIFF初期化完了");
+    if(!liff.isLoggedIn()){
+      log("未ログイン → LINEログインへリダイレクト");
+      liff.login({ redirectUri: location.href });
+      return null;
     }
-    
-    async function ensureLogin(liffId){
-      log("LIFF init: "+liffId);
-      await liff.init({ liffId });
-      log("LIFF初期化完了");
-      
-      if(!liff.isLoggedIn()){
-        log("未ログイン → LINEログインへリダイレクト");
-        liff.login({ redirectUri: location.href });
-        return null;
+    const idToken = liff.getIDToken();
+    if(!idToken) throw new Error("IDトークンが取得できません（Scopeに openid が必要）");
+    log("✅ IDトークン取得成功 (長さ: "+idToken.length+"文字)");
+    return idToken;
+  }
+
+  async function resolveUser(idToken){
+    log("ユーザーID解決中…");
+    const r = await fetch("/api/resolve-user",{
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify({ idToken })
+    });
+    const data = await r.json().catch(()=> ({}));
+    if(!r.ok){
+      const errorMsg = data?.error || "resolve-user failed";
+      const details = data?.details || "";
+      const hint = data?.hint || "";
+      throw new Error(`${errorMsg}${details ? ' - '+details : ''}${hint ? ' ('+hint+')' : ''}`);
+    }
+    if(!data.userId) throw new Error("userId not returned");
+    log("✅ ユーザーID: "+data.userId);
+    return data.userId;
+  }
+
+  async function fetchStatus(userId){
+    log("契約状況を取得中…");
+    const r = await fetch(`/api/user/${encodeURIComponent(userId)}`, { cache:"no-store" });
+    const data = await r.json().catch(()=> ({}));
+    if(!r.ok) throw new Error("status failed " + r.status);
+
+    // 反映
+    $("#uid").textContent = userId;
+    $("#premium").textContent = data.premium ? "プレミアム（有効）" : "無料プラン";
+    $("#premiumSince").textContent = fmt(data.premiumSince);
+    $("#premiumUntil").textContent = fmt(data.premiumUntil);
+    $("#cancelPending").textContent = data.cancelPending ? "あり" : "なし";
+    $("#cancelAt").textContent = fmt(data.cancelAt);
+
+    const chip = $("#statusChip");
+    chip.className = "chip " + (data.premium
+      ? (data.cancelPending ? "warn" : "ok")
+      : "err");
+    chip.textContent = data.premium
+      ? (data.cancelPending ? "有効（解約予約あり）" : "有効")
+      : "未契約/期限切れ";
+
+    $("#statusCard").style.display = "block";
+    $("#authHint").textContent = "本人確認が完了しました。契約状況を表示しています。";
+  }
+
+  async function openPortal(){
+    if(!currentUserId) return;
+    const url = `/billing-portal?userId=${encodeURIComponent(currentUserId)}`;
+    log("Stripe請求ポータルへ移動: " + url);
+    location.href = url;
+  }
+
+  async function startFlow(){
+    if(running) return;
+    running = true;
+    $("#log").innerHTML = "";
+    $("#statusCard").style.display = "none";
+    $("#reload").style.display = "none";
+    $("#start").disabled = true;
+
+    try{
+      log("設定読み込み中…");
+      const { liffIdMypage, liffId } = await getConfig();
+      const useId = liffIdMypage || liffId;
+      if(!useId) throw new Error("LIFF_ID_MYPAGE が未設定です。管理者に連絡してください。");
+
+      log("使用するLIFF ID: " + useId);
+      const idToken = await ensureLogin(useId);
+      if(!idToken){
+        log("↪ LINEログインページへ遷移します");
+        return;
       }
-      
-      const idToken = liff.getIDToken();
-      if(!idToken) throw new Error("IDトークンが取得できません（Scopeに openid が必要）");
-      
-      log("✅ IDトークン取得成功 (長さ: "+idToken.length+"文字)");
-      return idToken;
+
+      currentUserId = await resolveUser(idToken);
+      await fetchStatus(currentUserId);
+      $("#reload").style.display = "inline-flex";
+    }catch(e){
+      console.error(e);
+      log("エラー: " + (e?.message || e), true);
+      alert(
+        "マイページの読み込みに失敗しました。\n\n" + (e.message || e) +
+        "\n\n（ヒント）LIFFのScopeに `openid` を含め、" +
+        "LINEログインチャネルIDとサーバの `LINE_LOGIN_CHANNEL_ID` が一致しているか確認してください。"
+      );
+    }finally{
+      $("#start").disabled = false;
+      running = false;
     }
-    
-    async function resolveUser(idToken){
-      log("ユーザーID解決中...");
-      const r = await fetch("/api/resolve-user",{
-        method:"POST",
-        headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({ idToken })
-      });
-      
-      const data = await r.json().catch(()=> ({}));
-      
-      if(!r.ok) {
-        const errorMsg = data?.error || "resolve-user failed";
-        const details = data?.details || "";
-        const hint = data?.hint || "";
-        throw new Error(`${errorMsg}${details ? ' - '+details : ''}${hint ? ' ('+hint+')' : ''}`);
-      }
-      
-      if(!data.userId) throw new Error("userId not returned");
-      
-      log("✅ ユーザーID: "+data.userId, false);
-      return data.userId;
-    }
-    
-    async function goPortal(userId){
-      const url = `/billing-portal?userId=${encodeURIComponent(userId)}`;
-      log("Stripe請求ポータルへ移動: "+url);
-      location.href = url;
-    }
-    
-    async function start(){
-      const btn = $("#start");
-      btn.disabled = true;
-      $("#log").innerHTML = "";
-      
-      try{
-        log("設定読み込み中...");
-        const { liffIdMypage, liffId } = await getConfig();
-        const useId = liffIdMypage || liffId;
-        
-        if(!useId) {
-          throw new Error("LIFF_ID_MYPAGE が未設定です。管理者に連絡してください。");
-        }
-        
-        log("使用するLIFF ID: "+useId);
-        log("LINEログイン確認中...");
-        
-        const idToken = await ensureLogin(useId);
-        if(!idToken){ 
-          log("↪ LINEログインページへ遷移します"); 
-          return; 
-        }
-        
-        const userId = await resolveUser(idToken);
-        await goPortal(userId);
-        
-      }catch(e){
-        console.error(e);
-        log("エラー: "+(e?.message||e), true);
-        alert("マイページに移動できませんでした。\n\nエラー: "+e.message+"\n\nLIFF設定を確認してください。");
-        btn.disabled = false;
-      }
-    }
-    
-    $("#start").addEventListener("click", start);
-    
-    // 自動で開始したい場合は下を有効に（推奨）
-    // window.addEventListener("DOMContentLoaded", start);
-  </script>
+  }
+
+  // クリックハンドラ
+  $("#start").addEventListener("click", startFlow);
+  $("#reload").addEventListener("click", async ()=>{
+    if(!currentUserId) return startFlow();
+    await fetchStatus(currentUserId);
+  });
+  $("#reload2").addEventListener("click", async ()=>{
+    if(currentUserId) await fetchStatus(currentUserId);
+  });
+  $("#openPortal").addEventListener("click", openPortal);
+
+  // 必要なら自動開始
+  // window.addEventListener("DOMContentLoaded", startFlow);
+</script>
 </body>
 </html>
