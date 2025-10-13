@@ -32,6 +32,106 @@
   </div>
   <script>
     const $=s=>document.querySelector(s);
-    const log=m=>{ 
+    const log=(m,isError=false)=>{ 
       const el=$("#log"); 
-      const time = new Date().toLocaleTime
+      const time = new Date().toLocaleTimeString('ja-JP');
+      const prefix = isError ? '❌' : '🔍';
+      const className = isError ? 'error' : '';
+      el.innerHTML += `<div class="${className}">[${time}] ${prefix} ${m}</div>`;
+      el.scrollTop = el.scrollHeight;
+    };
+    
+    async function getConfig(){
+      const r = await fetch("/api/config",{cache:"no-store"});
+      if(!r.ok) throw new Error("config load failed "+r.status);
+      return r.json();
+    }
+    
+    async function ensureLogin(liffId){
+      log("LIFF init: "+liffId);
+      await liff.init({ liffId });
+      log("LIFF初期化完了");
+      
+      if(!liff.isLoggedIn()){
+        log("未ログイン → LINEログインへリダイレクト");
+        liff.login({ redirectUri: location.href });
+        return null;
+      }
+      
+      const idToken = liff.getIDToken();
+      if(!idToken) throw new Error("IDトークンが取得できません（Scopeに openid が必要）");
+      
+      log("✅ IDトークン取得成功 (長さ: "+idToken.length+"文字)");
+      return idToken;
+    }
+    
+    async function resolveUser(idToken){
+      log("ユーザーID解決中...");
+      const r = await fetch("/api/resolve-user",{
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ idToken })
+      });
+      
+      const data = await r.json().catch(()=> ({}));
+      
+      if(!r.ok) {
+        const errorMsg = data?.error || "resolve-user failed";
+        const details = data?.details || "";
+        const hint = data?.hint || "";
+        throw new Error(`${errorMsg}${details ? ' - '+details : ''}${hint ? ' ('+hint+')' : ''}`);
+      }
+      
+      if(!data.userId) throw new Error("userId not returned");
+      
+      log("✅ ユーザーID: "+data.userId, false);
+      return data.userId;
+    }
+    
+    async function goPortal(userId){
+      const url = `/billing-portal?userId=${encodeURIComponent(userId)}`;
+      log("Stripe請求ポータルへ移動: "+url);
+      location.href = url;
+    }
+    
+    async function start(){
+      const btn = $("#start");
+      btn.disabled = true;
+      $("#log").innerHTML = "";
+      
+      try{
+        log("設定読み込み中...");
+        const { liffIdMypage, liffId } = await getConfig();
+        const useId = liffIdMypage || liffId;
+        
+        if(!useId) {
+          throw new Error("LIFF_ID_MYPAGE が未設定です。管理者に連絡してください。");
+        }
+        
+        log("使用するLIFF ID: "+useId);
+        log("LINEログイン確認中...");
+        
+        const idToken = await ensureLogin(useId);
+        if(!idToken){ 
+          log("↪ LINEログインページへ遷移します"); 
+          return; 
+        }
+        
+        const userId = await resolveUser(idToken);
+        await goPortal(userId);
+        
+      }catch(e){
+        console.error(e);
+        log("エラー: "+(e?.message||e), true);
+        alert("マイページに移動できませんでした。\n\nエラー: "+e.message+"\n\nLIFF設定を確認してください。");
+        btn.disabled = false;
+      }
+    }
+    
+    $("#start").addEventListener("click", start);
+    
+    // 自動で開始したい場合は下を有効に（推奨）
+    // window.addEventListener("DOMContentLoaded", start);
+  </script>
+</body>
+</html>
