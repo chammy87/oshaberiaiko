@@ -455,7 +455,7 @@ async function verifyLineIdToken(idToken) {
     const { payload } = await jwtVerify(idToken, LINE_JWKS, {
       issuer: LINE_ISSUER,
       audience: channelId,
-      clockTolerance: 60, // 端末時刻ズレ耐性
+      clockTolerance: 300, // ← 5分まで許容（実運用だとこのくらいが安定）
     });
 
     console.log("✅ ID Token verified successfully");
