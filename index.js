@@ -528,6 +528,7 @@ app.post("/api/resolve-user", express.json(), async (req, res) => {
 });
 
 // LIFF経由のCheckout作成（userIdメタデータ付与）
+// LIFF経由のCheckout作成（userIdメタデータ付与）
 app.post("/create-checkout-session/liff", express.json(), async (req, res) => {
   try {
     const { idToken } = req.body || {};
@@ -542,6 +543,17 @@ app.post("/create-checkout-session/liff", express.json(), async (req, res) => {
     const payload = await verifyLineIdToken(idToken);
     const userId = payload.sub;
     console.log("✅ Creating checkout for user:", userId);
+
+    // 🔒 二重課金ガード：すでにプレミアムならCheckoutを発行しない
+    const snap = await db.collection("users").doc(String(userId)).get();
+    const data = snap.exists ? snap.data() : {};
+    if (isPremiumFromData(data)) {
+      return res.status(409).json({
+        error: "already_premium",
+        details: "User already has an active subscription",
+        redirectUrl: "https://menu-planner-express.onrender.com", // レシピアプリへ
+      });
+    }
 
     const base = process.env.PUBLIC_ORIGIN || "https://www.oshaberiaiko.com";
     const session = await stripe.checkout.sessions.create({
