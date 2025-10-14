@@ -460,6 +460,12 @@ async function verifyLineIdToken(idToken) {
         console.log("   - Token aud:", payload.aud);
         console.log("   - Token iss:", payload.iss);
         console.log("   - Token exp:", new Date(payload.exp * 1000).toISOString());
+        console.log("   - Current time:", new Date().toISOString());
+        
+        const nowSec = Math.floor(Date.now() / 1000);
+        const expSec = payload.exp;
+        const timeDiff = expSec - nowSec;
+        console.log("   - Time difference:", timeDiff, "seconds");
         
         // 事前チェック：audが一致しない場合は早期に詳細エラーを返す
         if (payload.aud !== channelId) {
@@ -480,7 +486,7 @@ async function verifyLineIdToken(idToken) {
     const { payload } = await jwtVerify(idToken, LINE_JWKS, {
       issuer: LINE_ISSUER,
       audience: channelId,
-      clockTolerance: 60, // 1分まで許容（実運用での安定性を考慮）
+      clockTolerance: 300, // 5分まで許容（LIFFでのトークン取得遅延を考慮）
     });
 
     console.log("✅ ID Token verified successfully");
@@ -497,8 +503,11 @@ async function verifyLineIdToken(idToken) {
   }
 }
 
-// 公開設定を返す（LIFF ID）
+// 公開設定を返す（LIFF ID）- キャッシュ無効化
 app.get("/api/config", (_req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
   res.json({
     liffId: process.env.LIFF_ID_PAY || process.env.LIFF_ID || "",
     liffIdPay: process.env.LIFF_ID_PAY || "",
@@ -671,6 +680,11 @@ app.get("/billing-portal", async (req, res) => {
 
 app.get("/api/user/:id", async (req, res) => {
   try {
+    // キャッシュ無効化ヘッダー
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    
     const id = req.params.id;
     const snap = await db.collection("users").doc(id).get();
     if (!snap.exists) return res.status(404).json({ exists: false });
