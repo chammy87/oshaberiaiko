@@ -184,6 +184,32 @@
       return null;
     }
 
+    // トークンの有効期限をチェック
+    const decoded = liff.getDecodedIDToken();
+    if (decoded && decoded.exp) {
+      const nowSec = Math.floor(Date.now() / 1000);
+      const expSec = decoded.exp;
+      const timeDiff = expSec - nowSec;
+      
+      console.log('🕐 Token expiry check:', {
+        exp: new Date(expSec * 1000).toISOString(),
+        now: new Date(nowSec * 1000).toISOString(),
+        diff: timeDiff + ' seconds'
+      });
+      
+      // 有効期限切れ、または10秒以内に切れる場合は再ログイン
+      if (timeDiff < 10) {
+        console.log('⚠️ Token expired or expiring soon - re-login');
+        // ログアウトしてから再ログイン
+        try { liff.logout(); } catch(_){}
+        liff.login({ 
+          redirectUri: location.href.split('#')[0].split('?')[0],
+          prompt: 'consent' 
+        });
+        return null;
+      }
+    }
+
     const idToken = liff.getIDToken();
     if (!idToken) {
       throw new Error('IDトークン取得失敗。LIFFのScopeに openid が含まれているか確認してください。');
