@@ -3,6 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <title>マイページ（契約状況）｜おしゃべりあいこちゃん</title>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
@@ -34,9 +37,7 @@
     th,td{text-align:left;padding:8px 4px;border-bottom:1px solid #f2f2f7;font-size:14px;vertical-align:top}
     th{color:#666;width:36%}
     td{color:#222}
-    /* 長い英数字を折返し */
     .break, .v code, td, .mono{word-break:break-all;overflow-wrap:anywhere}
-    /* 等幅フォント（ID表示など） */
     .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
     @media (max-width:420px){
       th,td{font-size:13px}
@@ -47,8 +48,7 @@
 </head>
 <body>
   <header>
-    <!-- 画像パスは配置に合わせて調整。例: /images/aiko-mypage.png -->
-    <img src="./aiko-mypage.png" alt="おしゃべりあいこちゃん マイページ">
+    <img src="./aiko-mypage.png?v=<?php echo time(); ?>" alt="おしゃべりあいこちゃん マイページ">
     <h1>契約状況を確認</h1>
   </header>
 
@@ -91,12 +91,13 @@
   </main>
 
 <script>
-  // -------- 端末判定 --------
+(function() {
+  'use strict';
+
   const isiOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
   const isAndroid = /Android/i.test(navigator.userAgent);
   const inLINE = /Line\//i.test(navigator.userAgent);
 
-  // -------- ユーティリティ --------
   const $ = (s)=>document.querySelector(s);
   const fmt = (iso)=>{
     if(!iso) return "-";
@@ -108,6 +109,17 @@
 
   let currentUserId = null;
   let running = false;
+
+  // キャッシュバスター用のタイムスタンプを生成
+  function getCacheBuster() {
+    return Date.now();
+  }
+
+  // URLにキャッシュバスターを追加
+  function addCacheBuster(url) {
+    const separator = url.includes('?') ? '&' : '?';
+    return `${url}${separator}_t=${getCacheBuster()}`;
+  }
 
   // クリップボードコピー
   $("#copyUid").addEventListener("click", async ()=>{
@@ -121,31 +133,55 @@
       r.selectNodeContents($("#uid"));
       const s = window.getSelection();
       s.removeAllRanges(); s.addRange(r);
-      alert("コピーできない場合は、選択してコピーしてください");
+      alert("選択された状態でコピーしてください");
     }
   });
 
-  // 外部ブラウザで開く
+  // 外部ブラウザで開く（キャッシュバスター付き）
   $("#openExternal").addEventListener("click", async ()=>{
     try{
       const { liffId, liffIdMypage } = await getConfig();
       const useId = liffIdMypage || liffId;
-      await liff.init({ liffId: useId }); await liff.ready;
-      if (liff.openWindow) return liff.openWindow({ url: location.href, external: true });
+      await liff.init({ liffId: useId }); 
+      await liff.ready;
+      if (liff.openWindow) {
+        const cleanUrl = location.href.split('?')[0].split('#')[0];
+        const urlWithCacheBuster = addCacheBuster(cleanUrl);
+        liff.openWindow({ url: urlWithCacheBuster, external: true });
+        return;
+      }
     }catch(_){}
-    location.href = location.href;
+    
+    // フォールバック：強制リロード
+    const cleanUrl = location.href.split('?')[0].split('#')[0];
+    location.href = addCacheBuster(cleanUrl);
   });
 
-  // -------- API --------
+  // キャッシュを無視してfetch
+  async function fetchNoCache(url, options = {}) {
+    const urlWithCache = addCacheBuster(url);
+    return fetch(urlWithCache, {
+      ...options,
+      cache: 'no-store',
+      headers: {
+        ...options.headers,
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      }
+    });
+  }
+
   async function getConfig(){
-    const r = await fetch("/api/config",{cache:"no-store"});
+    const r = await fetchNoCache("/api/config");
     if(!r.ok) throw new Error("config load failed "+r.status);
     return r.json();
   }
 
   // iOS安定化＆ループ防止つきログイン確保
   async function ensureLogin(liffId){
-    await liff.init({ liffId }); await liff.ready;
+    await liff.init({ liffId }); 
+    await liff.ready;
 
     // ループ防止: 直近30秒以内は再loginしない
     const now = Date.now();
@@ -154,7 +190,12 @@
     if (!liff.isLoggedIn()){
       if (now - lastTs < 30_000) return null;
       sessionStorage.setItem('login_ts', String(now));
-      liff.login({ redirectUri: location.href.split('#')[0] });
+      
+      // リダイレクトURLにキャッシュバスターを追加
+      const cleanUrl = location.href.split('#')[0].split('?')[0];
+      const redirectUrl = addCacheBuster(cleanUrl);
+      
+      liff.login({ redirectUri: redirectUrl });
       return null;
     }
 
@@ -164,25 +205,34 @@
       const refTries = Number(sessionStorage.getItem('refresh_tries') || 0);
       if (refTries >= 1) {
         if (isiOS && inLINE) { try{ liff.logout(); }catch(_){} }
-        if (liff.openWindow) liff.openWindow({ url: location.href, external: true });
+        if (liff.openWindow) {
+          const cleanUrl = location.href.split('#')[0].split('?')[0];
+          liff.openWindow({ url: addCacheBuster(cleanUrl), external: true });
+        }
         return null;
       }
       sessionStorage.setItem('refresh_tries', String(refTries + 1));
-      liff.login({ redirectUri: location.href.split('#')[0], prompt: 'consent' });
+      
+      const cleanUrl = location.href.split('#')[0].split('?')[0];
+      liff.login({ redirectUri: addCacheBuster(cleanUrl), prompt: 'consent' });
       return null;
     }
 
     let idToken = liff.getIDToken();
     if (!idToken) {
-      // iOSで稀にnullのとき：logout→consent で再取得を一回だけ
       const nullTries = Number(sessionStorage.getItem('nulltoken_tries') || 0);
       if (nullTries >= 1) {
-        if (liff.openWindow) liff.openWindow({ url: location.href, external: true });
+        if (liff.openWindow) {
+          const cleanUrl = location.href.split('#')[0].split('?')[0];
+          liff.openWindow({ url: addCacheBuster(cleanUrl), external: true });
+        }
         return null;
       }
       sessionStorage.setItem('nulltoken_tries', String(nullTries + 1));
       if (isiOS && inLINE) { try{ liff.logout(); }catch(_){} }
-      liff.login({ redirectUri: location.href.split('#')[0], prompt: 'consent' });
+      
+      const cleanUrl = location.href.split('#')[0].split('?')[0];
+      liff.login({ redirectUri: addCacheBuster(cleanUrl), prompt: 'consent' });
       return null;
     }
 
@@ -192,26 +242,28 @@
     return idToken;
   }
 
-  // 401時の分岐（expは再ログイン、aud不一致は停止、その他は外部へ）
   async function resolveUser(idToken){
-    const r = await fetch("/api/resolve-user",{
+    const r = await fetchNoCache("/api/resolve-user", {
       method:"POST",
       headers:{ "Content-Type":"application/json" },
       body: JSON.stringify({ idToken })
     });
+    
     const data = await r.json().catch(()=> ({}));
 
     if (r.status === 401) {
       const details = (data?.details || '').toLowerCase();
       if (details.includes('"exp"')) {
-        liff.login({ redirectUri: location.href.split('#')[0], prompt: 'consent' });
+        const cleanUrl = location.href.split('#')[0].split('?')[0];
+        liff.login({ redirectUri: addCacheBuster(cleanUrl), prompt: 'consent' });
         return null;
       }
       if (details.includes('audience') || details.includes('aud')) {
         throw new Error("ログインチャネル不一致（aud）。LIFFのチャネルIDと `LINE_LOGIN_CHANNEL_ID` を一致させてください。");
       }
       if (liff.openWindow) {
-        liff.openWindow({ url: location.href, external: true });
+        const cleanUrl = location.href.split('#')[0].split('?')[0];
+        liff.openWindow({ url: addCacheBuster(cleanUrl), external: true });
         return null;
       }
     }
@@ -227,7 +279,7 @@
   }
 
   async function fetchStatus(userId){
-    const r = await fetch(`/api/user/${encodeURIComponent(userId)}`, { cache:"no-store" });
+    const r = await fetchNoCache(`/api/user/${encodeURIComponent(userId)}`);
     const data = await r.json().catch(()=> ({}));
     if(!r.ok) throw new Error("status failed " + r.status);
 
@@ -250,12 +302,12 @@
   async function openPortal(){
     if(!currentUserId) return;
     const url = `/billing-portal?userId=${encodeURIComponent(currentUserId)}`;
-    location.href = url;
+    location.href = addCacheBuster(url);
   }
 
-  // -------- 起動フロー（Android描画フォールバック込み） --------
   async function startFlow(){
-    if(running) return; running = true;
+    if(running) return; 
+    running = true;
     $("#statusCard").style.display = "none";
     $("#reload").style.display = "none";
     $("#start").disabled = true;
@@ -266,22 +318,22 @@
       if(!useId) throw new Error("LIFF_ID_MYPAGE が未設定です。管理者に連絡してください。");
 
       const idToken = await ensureLogin(useId);
-      if(!idToken){ return; } // リダイレクト中
+      if(!idToken){ return; }
 
       const userId = await resolveUser(idToken);
-      if(!userId){ return; }   // リダイレクト中
+      if(!userId){ return; }
       currentUserId = userId;
 
       // Android LINE内で稀に描画が詰まる → 6秒待ってダメなら外部へ
       const timeout = new Promise((_,rej)=> setTimeout(()=>rej(new Error('render_timeout')), 6000));
       await Promise.race([ fetchStatus(userId), timeout ]);
 
-      // 正常表示できたらボタン整理
       $("#start").style.display = "none";
       $("#reload").style.display = "inline-flex";
     }catch(e){
       if (e.message === 'render_timeout' && isAndroid && inLINE && liff.openWindow) {
-        liff.openWindow({ url: location.href, external: true });
+        const cleanUrl = location.href.split('#')[0].split('?')[0];
+        liff.openWindow({ url: addCacheBuster(cleanUrl), external: true });
         return;
       }
       console.error(e);
@@ -296,7 +348,6 @@
     }
   }
 
-  // -------- ハンドラ --------
   $("#start").addEventListener("click", startFlow);
   $("#reload").addEventListener("click", async ()=>{
     if(!currentUserId) return startFlow();
@@ -309,6 +360,7 @@
 
   // ログイン復帰後に自動開始（再タップ不要）
   window.addEventListener("DOMContentLoaded", startFlow);
+})();
 </script>
 </body>
 </html>
