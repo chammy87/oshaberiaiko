@@ -586,6 +586,15 @@ app.post("/create-checkout-session/liff", express.json(), async (req, res) => {
 /* ======================== ここから通常ミドルウェア ======================== */
 // ⬇️ これ以降に JSON パーサを置く（Stripeのraw受信と衝突しない）
 app.use(express.json());
+
+// キャッシュ無効化ミドルウェア（全リクエストに適用）
+app.use((req, res, next) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  next();
+});
+
 app.use(express.static("public"));
 
 /* ======================== 管理用：手動リッチメニュー切替（任意） ======================== */
