@@ -444,46 +444,54 @@ const LINE_JWKS = createRemoteJWKSet(
 
 async function verifyLineIdToken(idToken) {
   try {
-    // ★ 修正：audienceにはChannel ID（数値文字列）を使用 + clockTolerance
     const channelId = process.env.LINE_LOGIN_CHANNEL_ID;
     if (!channelId) {
       throw new Error("LINE_LOGIN_CHANNEL_ID not configured");
     }
 
-    console.log("🔍 Verifying ID token with channelId:", channelId);
+    console.log("🔍 Verifying ID token");
+    console.log("   - Expected Channel ID:", channelId);
+
+    // デバッグ用：トークンのペイロードを先に確認
+    try {
+      const parts = idToken.split(".");
+      if (parts.length === 3) {
+        const payload = JSON.parse(Buffer.from(parts[1], "base64").toString());
+        console.log("   - Token aud:", payload.aud);
+        console.log("   - Token iss:", payload.iss);
+        console.log("   - Token exp:", new Date(payload.exp * 1000).toISOString());
+        
+        // 事前チェック：audが一致しない場合は早期に詳細エラーを返す
+        if (payload.aud !== channelId) {
+          throw new Error(
+            `Channel ID mismatch: expected ${channelId}, got ${payload.aud}. ` +
+            `LIFFのチャネルIDとLINE_LOGIN_CHANNEL_IDを一致させてください。`
+          );
+        }
+      }
+    } catch (decodeError) {
+      // デコードエラーは無視してjwtVerifyに任せる
+      if (decodeError.message.includes('Channel ID mismatch')) {
+        throw decodeError; // Channel ID不一致は再スロー
+      }
+      console.error("   - Token decode error:", decodeError.message);
+    }
 
     const { payload } = await jwtVerify(idToken, LINE_JWKS, {
       issuer: LINE_ISSUER,
       audience: channelId,
-      clockTolerance: 300, // ← 5分まで許容（実運用だとこのくらいが安定）
+      clockTolerance: 60, // 1分まで許容（実運用での安定性を考慮）
     });
 
     console.log("✅ ID Token verified successfully");
     console.log("   - User ID (sub):", payload.sub);
-    console.log("   - Audience:", payload.aud);
-    console.log("   - Issued at:", new Date(payload.iat * 1000).toISOString());
 
-    return payload; // payload.sub が LINE の userId
+    return payload;
   } catch (error) {
     console.error("❌ ID Token verification failed:");
     console.error("   - Error name:", error.name);
     console.error("   - Error message:", error.message);
     console.error("   - Error code:", error.code);
-
-    // デバッグ用：トークンの情報を出力（本番では削除推奨）
-    if (idToken) {
-      try {
-        const parts = idToken.split(".");
-        if (parts.length === 3) {
-          const payload = JSON.parse(Buffer.from(parts[1], "base64").toString());
-          console.error("   - Token audience:", payload.aud);
-          console.error("   - Token issuer:", payload.iss);
-          console.error("   - Token expiry:", new Date(payload.exp * 1000).toISOString());
-        }
-      } catch (e) {
-        console.error("   - Could not decode token for debugging");
-      }
-    }
 
     throw error;
   }
@@ -527,7 +535,6 @@ app.post("/api/resolve-user", express.json(), async (req, res) => {
   }
 });
 
-// LIFF経由のCheckout作成（userIdメタデータ付与）
 // LIFF経由のCheckout作成（userIdメタデータ付与）
 app.post("/create-checkout-session/liff", express.json(), async (req, res) => {
   try {
