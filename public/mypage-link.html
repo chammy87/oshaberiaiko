@@ -80,10 +80,10 @@
       </table>
       <div class="sep"></div>
       <div class="row">
-        <button id="openPortal" class="btn brand">請求ポータルを開く</button>
+        <button id="openPortal" class="btn brand">請求に関して（変更・解約）</button>
         <button id="reload2" class="btn">再取得</button>
       </div>
-      <p class="muted" style="margin-top:8px">※ ポータルでは支払い方法の変更、解約/再開、請求履歴の確認ができます。</p>
+      <p class="muted" style="margin-top:8px">※ 支払い方法の変更、解約/再開、請求履歴の確認ができます。</p>
     </div>
   </main>
 
@@ -108,15 +108,16 @@
   let running = false;
   let liffInitialized = false;
 
-  // ループ防止：起動回数を記録
+  // ループ防止：起動回数を記録（より寛容に）
   const SESSION_KEY = 'mypage_start_count';
-  const MAX_STARTS = 3;
+  const MAX_STARTS = 5;  // 3回→5回に増やす
   
   function checkStartCount() {
     const count = parseInt(sessionStorage.getItem(SESSION_KEY) || '0');
     if (count >= MAX_STARTS) {
-      alert('ログインに問題が発生しています。\n\n外部ブラウザで開くボタンを押してください。\n\nまたは、LINEアプリを再起動してからお試しください。');
+      alert('ログインに問題が発生しています。\n\n対処法：\n1. 「外部ブラウザで開く」ボタンを押す\n2. LINEアプリを再起動する\n3. スマホを再起動する');
       $("#start").disabled = true;
+      $("#openExternal").style.display = "inline-flex";
       return false;
     }
     sessionStorage.setItem(SESSION_KEY, String(count + 1));
@@ -139,29 +140,41 @@
     }
   });
 
-  // 外部ブラウザで開く
+  // 外部ブラウザで開く（改善版）
   $("#openExternal").addEventListener("click", async ()=>{
+    console.log('🔄 外部ブラウザで開く');
+    
     // セッションをクリア
     sessionStorage.clear();
     
-    try{
-      if (liffInitialized && liff.openWindow) {
-        liff.openWindow({ url: location.href, external: true });
-        return;
-      }
-      
-      const { liffId, liffIdMypage } = await getConfig();
-      const useId = liffIdMypage || liffId;
-      if (useId) {
-        await liff.init({ liffId: useId });
-        await liff.ready;
-        if (liff.openWindow) {
-          liff.openWindow({ url: location.href, external: true });
-          return;
+    // LINE内ブラウザの場合
+    if (inLINE) {
+      try {
+        if (window.liff) {
+          if (!liffInitialized) {
+            const { liffId, liffIdMypage } = await getConfig();
+            const useId = liffIdMypage || liffId;
+            if (useId) {
+              await liff.init({ liffId: useId });
+              await liff.ready;
+              liffInitialized = true;
+            }
+          }
+          
+          if (liff.openWindow) {
+            const url = location.href.split('#')[0].split('?')[0];
+            console.log('🌐 Opening in external browser:', url);
+            liff.openWindow({ url: url, external: true });
+            return;
+          }
         }
+      } catch(e) {
+        console.error('LIFF openWindow failed:', e);
       }
-    }catch(_){}
+    }
     
+    // フォールバック：強制リロード
+    console.log('🔄 Fallback: reload');
     location.reload();
   });
 
@@ -273,8 +286,24 @@
   }
 
   async function openPortal(){
-    if(!currentUserId) return;
-    location.href = `/billing-portal?userId=${encodeURIComponent(currentUserId)}`;
+    if(!currentUserId) {
+      alert('ユーザー情報が取得できていません。ページを再読み込みしてください。');
+      return;
+    }
+    
+    console.log('🔄 Opening billing portal for user:', currentUserId);
+    
+    try {
+      // ポータルURLを取得してから遷移
+      const portalUrl = `/billing-portal?userId=${encodeURIComponent(currentUserId)}`;
+      console.log('Portal URL:', portalUrl);
+      
+      // 直接遷移
+      window.location.href = portalUrl;
+    } catch (e) {
+      console.error('Portal open error:', e);
+      alert('請求ページを開けませんでした。もう一度お試しください。');
+    }
   }
 
   async function startFlow(){
@@ -290,6 +319,7 @@
     $("#statusCard").style.display = "none";
     $("#reload").style.display = "none";
     $("#start").disabled = true;
+    $("#start").textContent = "読み込み中...";
 
     try{
       const { liffIdMypage, liffId } = await getConfig();
@@ -302,20 +332,23 @@
       const idToken = await ensureLogin(useId);
       if(!idToken) {
         // リダイレクト中
+        console.log('🔄 Redirecting to LINE login...');
         return;
       }
 
       const userId = await resolveUser(idToken);
       if(!userId) {
         // リダイレクト中
+        console.log('🔄 Redirecting after user resolution...');
         return;
       }
       
       currentUserId = userId;
+      console.log('✅ User ID resolved:', userId);
 
       // Android対策：タイムアウト付き
       const timeout = new Promise((_,rej)=> 
-        setTimeout(()=>rej(new Error('render_timeout')), 8000)
+        setTimeout(()=>rej(new Error('render_timeout')), 10000)
       );
       
       await Promise.race([ fetchStatus(userId), timeout ]);
@@ -324,18 +357,40 @@
       $("#reload").style.display = "inline-flex";
       
     } catch(e) {
-      if (e.message === 'render_timeout' && isAndroid && inLINE && liff.openWindow) {
+      console.error('❌ startFlow error:', e);
+      
+      if (e.message === 'render_timeout' && isAndroid && inLINE) {
         console.log('⚠️ Android描画タイムアウト');
-        liff.openWindow({ url: location.href, external: true });
-        return;
+        if (window.liff && liff.openWindow) {
+          liff.openWindow({ url: location.href.split('#')[0].split('?')[0], external: true });
+          return;
+        }
       }
       
-      console.error(e);
-      alert(
-        "マイページの読み込みに失敗しました。\n\n" + (e.message || e) +
-        "\n\n外部ブラウザで開くボタンを押してお試しください。"
-      );
+      const errorMsg = e.message || String(e);
+      console.error('Error details:', errorMsg);
+      
+      // ユーザーフレンドリーなエラーメッセージ
+      let userMsg = "マイページの読み込みに失敗しました。\n\n";
+      
+      if (errorMsg.includes('exp') || errorMsg.includes('期限')) {
+        userMsg += "認証の有効期限が切れています。\nもう一度「LINEで続ける」ボタンを押してください。";
+      } else if (errorMsg.includes('Channel ID') || errorMsg.includes('aud')) {
+        userMsg += "設定エラーが発生しています。\n管理者に連絡してください。";
+      } else {
+        userMsg += errorMsg + "\n\n「外部ブラウザで開く」ボタンをお試しください。";
+      }
+      
+      alert(userMsg);
+      
+      // エラー後もボタンを有効化
+      $("#start").textContent = "LINEで続ける";
+      $("#start").disabled = false;
+      
     } finally {
+      if ($("#start").textContent === "読み込み中...") {
+        $("#start").textContent = "LINEで続ける";
+      }
       $("#start").disabled = false;
       running = false;
     }
