@@ -199,44 +199,6 @@
     }
   });
 
-  // 外部ブラウザで開く（改善版）
-  $("#openExternal").addEventListener("click", async ()=>{
-    console.log('🔄 外部ブラウザで開く');
-    
-    // セッションをクリア
-    sessionStorage.clear();
-    
-    // LINE内ブラウザの場合
-    if (inLINE) {
-      try {
-        if (window.liff) {
-          if (!liffInitialized) {
-            const { liffId, liffIdMypage } = await getConfig();
-            const useId = liffIdMypage || liffId;
-            if (useId) {
-              await liff.init({ liffId: useId });
-              await liff.ready;
-              liffInitialized = true;
-            }
-          }
-          
-          if (liff.openWindow) {
-            const url = location.href.split('#')[0].split('?')[0];
-            console.log('🌐 Opening in external browser:', url);
-            liff.openWindow({ url: url, external: true });
-            return;
-          }
-        }
-      } catch(e) {
-        console.error('LIFF openWindow failed:', e);
-      }
-    }
-    
-    // フォールバック：強制リロード
-    console.log('🔄 Fallback: reload');
-    location.reload();
-  });
-
   async function getConfig(){
     const r = await fetch("/api/config", {cache:"no-store"});
     if(!r.ok) throw new Error("config load failed "+r.status);
@@ -252,7 +214,9 @@
 
     if (!liff.isLoggedIn()){
       console.log('🔄 未ログイン - リダイレクト');
-      liff.login({ redirectUri: location.href.split('#')[0].split('?')[0] });
+      const redirectUri = location.origin + location.pathname;
+      console.log('Redirect URI:', redirectUri);
+      liff.login({ redirectUri: redirectUri });
       return null;
     }
 
@@ -269,14 +233,14 @@
         diff: timeDiff + ' seconds'
       });
       
-      // 有効期限切れ、または10秒以内に切れる場合は再ログイン
-      if (timeDiff < 10) {
+      // 有効期限切れ、または30秒以内に切れる場合は再ログイン
+      if (timeDiff < 30) {
         console.log('⚠️ Token expired or expiring soon - re-login');
+        const redirectUri = location.origin + location.pathname;
         // ログアウトしてから再ログイン
         try { liff.logout(); } catch(_){}
         liff.login({ 
-          redirectUri: location.href.split('#')[0].split('?')[0],
-          prompt: 'consent' 
+          redirectUri: redirectUri
         });
         return null;
       }
