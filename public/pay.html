@@ -16,13 +16,10 @@
     .btn{display:inline-block;padding:12px 18px;margin:6px;border-radius:12px;text-decoration:none;font-weight:600;cursor:pointer;border:none}
     .btn.brand{background:#2f6df6;color:#fff}
     .btn.ghost{background:#fff;border:1px solid #e8eaf0;color:#222}
-    .btn.warn{background:#f57c00;color:#fff}
     .btn[disabled]{opacity:.6;pointer-events:none}
     .muted{color:#636a7a}
-    #log{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;font-size:12px;color:#555;white-space:pre-wrap;background:#f5f5f5;padding:8px;border-radius:4px;max-height:300px;overflow-y:auto}
+    #log{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;font-size:12px;color:#555;white-space:pre-wrap;background:#f5f5f5;padding:8px;border-radius:4px;max-height:300px;overflow-y:auto;display:none}
     .error{color:#d32f2f;font-weight:600}
-    .error-box{background:#ffebee;border:2px solid #d32f2f;border-radius:12px;padding:16px;margin:16px 0}
-    .error-box h3{margin:0 0 8px;color:#d32f2f}
   </style>
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 </head>
@@ -36,25 +33,17 @@
       <p class="muted">「LINEで続ける」を押すと、LINEログイン後に決済ページ（Stripe）へ移動します。</p>
       <button id="start" class="btn brand">LINEで続ける</button>
       <button id="retry" class="btn ghost" style="display:none">もう一度試す</button>
-      <button id="resetSession" class="btn warn" style="display:none">ループをリセット</button>
-      <div id="log" style="margin-top:8px"></div>
-      <div id="errorBox" style="display:none" class="error-box">
-        <h3>⚠️ エラーが発生しました</h3>
-        <p id="errorMsg"></p>
-      </div>
-    </div>
-    <div class="card">
-      <p class="muted" style="margin:0 0 8px">もし画面が進まない/開かない場合は、外部ブラウザで開いてお試しください。</p>
-      <button id="openExternal" class="btn ghost">外部ブラウザでこのページを開く</button>
+      <div id="log"></div>
     </div>
   </div>
 <script>
 (function() {
   'use strict';
-
+  
   const $ = s => document.querySelector(s);
   const log = (m, isError=false) => { 
-    const el=$("#log"); 
+    const el = $("#log"); 
+    el.style.display = 'block';
     const time = new Date().toLocaleTimeString('ja-JP');
     const prefix = isError ? '❌' : '🔍';
     const className = isError ? 'error' : '';
@@ -62,4 +51,168 @@
     el.scrollTop = el.scrollHeight;
   };
   
-  const inLINE = /Line\//i.test(navigator.userAgent ||
+  const inLINE = /Line\//i.test(navigator.userAgent || "");
+  let running = false;
+  const RECIPE_APP_URL = "https://menu-planner-express.onrender.com";
+
+  // 起動時チェック：プレミアムなら即レシピへ
+  (async () => {
+    try {
+      const cfgRes = await fetch("/api/config", {cache:"no-store"});
+      if (!cfgRes.ok) return;
+      const cfg = await cfgRes.json();
+      const liffId = cfg.liffIdPay || cfg.liffId;
+      if (!liffId) return;
+
+      await liff.init({ liffId });
+      await liff.ready;
+      if (!liff.isLoggedIn()) return;
+
+      const idToken = liff.getIDToken();
+      if (!idToken) return;
+
+      const resUser = await fetch("/api/resolve-user", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idToken })
+      });
+      if (!resUser.ok) return;
+      const { userId } = await resUser.json();
+      if (!userId) return;
+
+      const stRes = await fetch(`/api/user/${encodeURIComponent(userId)}`, { cache: "no-store" });
+      if (!stRes.ok) return;
+      const st = await stRes.json();
+
+      if (st?.premium) {
+        log("✅ すでにプレミアム会員です。レシピアプリへ転送します。");
+        location.replace(RECIPE_APP_URL);
+      }
+    } catch(_) {}
+  })();
+
+  async function getConfig() {
+    const r = await fetch("/api/config", {cache: "no-store"});
+    if (!r.ok) throw new Error("config load failed " + r.status);
+    return r.json();
+  }
+  
+  async function ensureLogin(liffId) {
+    log("LIFF初期化中: " + liffId);
+    await liff.init({ liffId });
+    await liff.ready;
+    log("✅ LIFF初期化完了");
+    
+    if (!liff.isLoggedIn()) {
+      log("未ログイン → LINEログインへリダイレクト");
+      const redirectUri = location.origin + location.pathname;
+      log("Redirect URI: " + redirectUri);
+      liff.login({ redirectUri: redirectUri });
+      return null;
+    }
+    
+    // トークン有効期限チェック
+    const decoded = liff.getDecodedIDToken();
+    if (decoded && decoded.exp) {
+      const nowSec = Math.floor(Date.now() / 1000);
+      const expSec = decoded.exp;
+      const timeDiff = expSec - nowSec;
+      
+      log(`Token有効期限: ${new Date(expSec * 1000).toISOString()}, 残り${timeDiff}秒`);
+      
+      if (timeDiff < 30) {
+        log("⚠️ Token期限切れ間近 - 再ログイン", true);
+        const redirectUri = location.origin + location.pathname;
+        try { liff.logout(); } catch(_) {}
+        liff.login({ redirectUri: redirectUri });
+        return null;
+      }
+    }
+    
+    const idToken = liff.getIDToken();
+    if (!idToken) throw new Error("IDトークン取得失敗（Scopeに openid が必要）");
+    
+    log("✅ IDトークン取得成功 (長さ: " + idToken.length + "文字)");
+    return idToken;
+  }
+  
+  async function createCheckout(idToken) {
+    log("決済セッション作成中...");
+    const r = await fetch("/create-checkout-session/liff", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ idToken })
+    });
+    
+    const data = await r.json().catch(() => ({}));
+    
+    if (!r.ok) {
+      if (r.status === 409 && data?.redirectUrl) {
+        log("✅ すでにプレミアム会員です。レシピアプリへ移動します。");
+        location.href = data.redirectUrl;
+        return null;
+      }
+      const errorMsg = data?.error || "checkout api failed";
+      const details = data?.details || "";
+      throw new Error(`${errorMsg}${details ? ' - ' + details : ''}`);
+    }
+    
+    if (!data.url) throw new Error("checkout url not returned");
+    
+    log("✅ 決済セッション作成完了");
+    return data.url;
+  }
+  
+  async function start() {
+    if (running) return;
+    running = true;
+
+    const btn = $("#start");
+    const retry = $("#retry");
+    btn.disabled = true;
+    btn.textContent = "処理中...";
+    retry.style.display = "none";
+    $("#log").innerHTML = "";
+    $("#log").style.display = "block";
+    
+    try {
+      log("設定読み込み中...");
+      const { liffId, liffIdPay } = await getConfig();
+      const useId = liffIdPay || liffId;
+      if (!useId) throw new Error("LIFF ID 未設定。管理者に連絡してください。");
+      
+      log("使用するLIFF ID: " + useId);
+      
+      log("LINEログイン確認中...");
+      const idToken = await ensureLogin(useId);
+      if (!idToken) { 
+        log("↪ LINEログインページへ遷移します"); 
+        return; 
+      }
+      
+      const url = await createCheckout(idToken);
+      if (url) {
+        log("✅ Stripe Checkoutへ移動します");
+        location.href = url;
+      }
+      
+    } catch(e) {
+      console.error(e);
+      log("エラー: " + (e?.message || e), true);
+      alert(
+        "エラーが発生しました。\n\n" + (e.message || e)
+      );
+      btn.textContent = "LINEで続ける";
+      btn.disabled = false;
+      retry.style.display = "inline-block";
+    } finally {
+      running = false;
+    }
+  }
+  
+  $("#start").addEventListener("click", start);
+  $("#retry").addEventListener("click", start);
+})();
+</script>
+</body>
+</html>
