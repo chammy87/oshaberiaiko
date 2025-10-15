@@ -687,7 +687,19 @@ app.get("/api/user/:id", async (req, res) => {
     
     const id = req.params.id;
     const snap = await db.collection("users").doc(id).get();
-    if (!snap.exists) return res.status(404).json({ exists: false });
+    
+    // ユーザーが存在しない場合でも基本情報を返す
+    if (!snap.exists) {
+      return res.json({
+        exists: false,
+        premium: false,
+        premiumSince: null,
+        premiumUntil: null,
+        cancelPending: false,
+        cancelAt: null,
+      });
+    }
+    
     const data = snap.data();
     const toISO = (v) =>
       v && typeof v.toDate === "function" ? v.toDate().toISOString() : v || null;
