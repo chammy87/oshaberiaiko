@@ -139,10 +139,11 @@
       </table>
       <div class="sep"></div>
       <div class="row">
-        <button id="openPortal" class="btn brand">請求に関して（変更・解約）</button>
+        <button id="openPortal" class="btn brand" style="display:none">請求に関して（変更・解約）</button>
+        <button id="upgradePremium" class="btn brand" style="display:none">プレミアムに登録する</button>
         <button id="reload2" class="btn">再取得</button>
       </div>
-      <p class="muted" style="margin-top:8px">※ 支払い方法の変更、解約/再開、請求履歴の確認ができます。</p>
+      <p class="muted" style="margin-top:8px" id="portalNote">※ 支払い方法の変更、解約/再開、請求履歴の確認ができます。</p>
     </div>
   </main>
 
@@ -335,6 +336,17 @@
     chip.className = "statuschip " + (data.premium ? (data.cancelPending ? "status-warn":"status-ok") : "status-err");
     chip.textContent = data.premium ? (data.cancelPending ? "有効（解約予約あり）" : "有効") : "未契約 / 期限切れ";
 
+    // プレミアム会員かどうかでボタンを切り替え
+    if (data.premium) {
+      // プレミアム会員：請求ポータルボタンを表示
+      $("#openPortal").style.display = "inline-flex";
+      $("#upgradePremium").style.display = "none";
+    } else {
+      // 一般会員：プレミアム登録ボタンを表示
+      $("#openPortal").style.display = "none";
+      $("#upgradePremium").style.display = "inline-flex";
+    }
+
     $("#statusCard").style.display = "block";
     $("#authHint").textContent = "本人確認が完了しました。";
     $("#reload").style.display = "inline-flex";
@@ -363,6 +375,18 @@
       console.error('Portal open error:', e);
       alert('請求ページを開けませんでした。もう一度お試しください。');
     }
+  }
+
+  async function upgradeToPremium(){
+    if(!currentUserId) {
+      alert('ユーザー情報が取得できていません。ページを再読み込みしてください。');
+      return;
+    }
+    
+    console.log('🔄 Redirecting to premium registration for user:', currentUserId);
+    
+    // プレミアム登録ページへ遷移
+    window.location.href = 'https://www.oshaberiaiko.com/pay.html';
   }
 
   async function startFlow(){
@@ -464,6 +488,7 @@
     if(currentUserId) await fetchStatus(currentUserId);
   });
   $("#openPortal").addEventListener("click", openPortal);
+  $("#upgradePremium").addEventListener("click", upgradeToPremium);
 
   // 自動開始（1回のみ）
   window.addEventListener("DOMContentLoaded", ()=>{
