@@ -13,6 +13,10 @@ import chatRoutes from "./routes/chat.js";
 dotenv.config();
 
 /* ======================== 初期化 ======================== */
+if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
+  console.error("❌ FIREBASE_SERVICE_ACCOUNT is not set (base64 JSON)");
+  process.exit(1); // 強制終了
+}
 const serviceAccount = JSON.parse(
   Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT, "base64").toString("utf8")
 );
@@ -752,7 +756,7 @@ app.post("/create-checkout-session", async (req, res) => {
   }
 });
 
-app.post("/api/chat", async (req, res) => {
+app.post("/api/chat", authenticateN8n, async (req, res) => {
   try {
     const { userId, message } = req.body || {};
     if (!userId || !message)
