@@ -3,11 +3,14 @@ import express from "express";
 import admin from "firebase-admin";
 
 const router = express.Router();
-const db = admin.firestore();
+
+// ❌ ここで呼び出さない
+// const db = admin.firestore();
 
 // 会話履歴取得
 router.get("/:uid/history", async (req, res) => {
   try {
+    const db = admin.firestore(); // ✅ ハンドラー内で取得
     const { uid } = req.params;
     const limit = parseInt(req.query.limit) || 10;
 
@@ -55,6 +58,7 @@ router.get("/:uid/history", async (req, res) => {
 // メッセージ保存
 router.post("/:uid/message", async (req, res) => {
   try {
+    const db = admin.firestore(); // ✅ ハンドラー内で取得
     const { uid } = req.params;
     const { role, content, message_id } = req.body;
 
