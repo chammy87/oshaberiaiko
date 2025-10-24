@@ -8,6 +8,7 @@ import admin from "firebase-admin";
 import { createRemoteJWKSet, jwtVerify } from "jose";
 
 import { system as aikoSystem, templates as aikoTemplates } from "./Prompt.js";
+import chatRoutes from "./routes/chat.js";
 
 dotenv.config();
 
@@ -99,6 +100,18 @@ function isPremiumFromData(data) {
   if (!until) return true;
   return until.getTime() > Date.now();
 }
+/* ======================== n8n認証ミドルウェア ======================== */
+const authenticateN8n = (req, res, next) => {
+  const token = req.headers["x-n8n-token"];
+  
+  if (!token || token !== process.env.N8N_SHARED_SECRET) {
+    console.warn("🚫 Unauthorized n8n access attempt");
+    return res.status(403).json({ error: "forbidden" });
+  }
+  
+  console.log("✅ n8n authentication successful");
+  next();
+};
 
 /* ============ Rich Menu 切替（SDK利用でfetch不要） ============ */
 async function linkRichMenuIdToUser(userId, richMenuId) {
@@ -605,6 +618,9 @@ app.use((req, res, next) => {
 });
 
 app.use(express.static("public"));
+
+/* ======================== n8n Chat API ======================== */
+app.use("/api/chat", authenticateN8n, chatRoutes);
 
 /* ======================== 管理用：手動リッチメニュー切替（任意） ======================== */
 app.post("/admin/switch-richmenu", express.json(), async (req, res) => {
