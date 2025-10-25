@@ -99,4 +99,68 @@ router.post("/:uid/message", async (req, res) => {
   }
 });
 
+// プロフィール取得
+router.get("/:uid/profile", async (req, res) => {
+  try {
+    const { uid } = req.params;
+
+    console.log(`📖 Fetching profile for user: ${uid}`);
+
+    const profileRef = db.collection("conversations").doc(uid).collection("profile").doc("info");
+    
+    const profileDoc = await profileRef.get();
+
+    if (!profileDoc.exists) {
+      console.log(`ℹ️ No profile found for user: ${uid}`);
+      return res.json({ exists: false, profile: null });
+    }
+
+    const profileData = profileDoc.data();
+    
+    console.log(`✅ Profile found for user: ${uid}`);
+    res.json({ 
+      exists: true, 
+      profile: {
+        ...profileData,
+        created_at: profileData.created_at?.toDate ? profileData.created_at.toDate().toISOString() : null,
+        updated_at: profileData.updated_at?.toDate ? profileData.updated_at.toDate().toISOString() : null
+      }
+    });
+  } catch (error) {
+    console.error("❌ Error fetching profile:", error);
+    res.status(500).json({ error: "internal_server_error" });
+  }
+});
+
+// プロフィール保存
+router.post("/:uid/profile", async (req, res) => {
+  try {
+    const { uid } = req.params;
+    const profileData = req.body;
+
+    console.log(`💾 Saving profile for user: ${uid}`);
+
+    const profileRef = db.collection("conversations").doc(uid).collection("profile").doc("info");
+    
+    const data = {
+      ...profileData,
+      updated_at: admin.firestore.FieldValue.serverTimestamp()
+    };
+
+    // 新規作成の場合はcreated_atも追加
+    const existingProfile = await profileRef.get();
+    if (!existingProfile.exists) {
+      data.created_at = admin.firestore.FieldValue.serverTimestamp();
+    }
+
+    await profileRef.set(data, { merge: true });
+
+    console.log(`✅ Profile saved for user: ${uid}`);
+    res.json({ success: true });
+  } catch (error) {
+    console.error("❌ Error saving profile:", error);
+    res.status(500).json({ error: "internal_server_error" });
+  }
+});
+
 export default router;
