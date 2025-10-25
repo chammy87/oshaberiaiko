@@ -102,6 +102,7 @@ router.post("/:uid/message", async (req, res) => {
 // プロフィール取得
 router.get("/:uid/profile", async (req, res) => {
   try {
+    const db = admin.firestore(); // ✅ 追加
     const { uid } = req.params;
 
     console.log(`📖 Fetching profile for user: ${uid}`);
@@ -135,6 +136,7 @@ router.get("/:uid/profile", async (req, res) => {
 // プロフィール保存
 router.post("/:uid/profile", async (req, res) => {
   try {
+    const db = admin.firestore(); // ✅ 追加
     const { uid } = req.params;
     const profileData = req.body;
 
