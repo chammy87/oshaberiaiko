@@ -171,5 +171,86 @@ router.post("/:uid/profile", async (req, res) => {
     res.status(500).json({ error: "internal_server_error" });
   }
 });
+// 会員種別取得
+router.get("/:uid/membership", async (req, res) => {
+  try {
+    const db = admin.firestore();
+    const { uid } = req.params;
+
+    console.log(`👤 Fetching membership for user: ${uid}`);
+
+    const membershipRef = db
+      .collection("conversations")
+      .doc(uid)
+      .collection("membership")
+      .doc("info");
+
+    const membershipDoc = await membershipRef.get();
+
+    if (!membershipDoc.exists) {
+      console.log(`ℹ️ No membership found, defaulting to free tier`);
+      return res.json({ 
+        exists: false, 
+        tier: "free" // デフォルトは一般会員
+      });
+    }
+
+    const membershipData = membershipDoc.data();
+
+    console.log(`✅ Membership found: ${membershipData.tier}`);
+    res.json({
+      exists: true,
+      tier: membershipData.tier,
+      created_at: membershipData.created_at?.toDate
+        ? membershipData.created_at.toDate().toISOString()
+        : null,
+      updated_at: membershipData.updated_at?.toDate
+        ? membershipData.updated_at.toDate().toISOString()
+        : null,
+    });
+  } catch (error) {
+    console.error("❌ Error fetching membership:", error);
+    res.status(500).json({ error: "internal_server_error" });
+  }
+});
+
+// 会員種別更新
+router.post("/:uid/membership", async (req, res) => {
+  try {
+    const db = admin.firestore();
+    const { uid } = req.params;
+    const { tier } = req.body;
+
+    if (!["free", "premium"].includes(tier)) {
+      return res.status(400).json({ error: "invalid_tier" });
+    }
+
+    console.log(`💳 Updating membership for user: ${uid} to ${tier}`);
+
+    const membershipRef = db
+      .collection("conversations")
+      .doc(uid)
+      .collection("membership")
+      .doc("info");
+
+    const data = {
+      tier,
+      updated_at: admin.firestore.FieldValue.serverTimestamp(),
+    };
+
+    const existingMembership = await membershipRef.get();
+    if (!existingMembership.exists) {
+      data.created_at = admin.firestore.FieldValue.serverTimestamp();
+    }
+
+    await membershipRef.set(data, { merge: true });
+
+    console.log(`✅ Membership updated to ${tier}`);
+    res.json({ success: true, tier });
+  } catch (error) {
+    console.error("❌ Error updating membership:", error);
+    res.status(500).json({ error: "internal_server_error" });
+  }
+});
 
 export default router;
