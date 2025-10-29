@@ -334,46 +334,4 @@ router.get('/:uid/ingredients', async (req, res) => {
   }
 });
 
-// 食材リストを取得
-router.get('/:uid/ingredients', async (req, res) => {
-  try {
-    const userId = req.params.uid;
-
-    console.log('食材リスト取得:', userId);
-
-    const ingredientsRef = db
-      .collection('conversations')
-      .doc(userId)
-      .collection('ingredients')
-      .doc('current');
-
-    const doc = await ingredientsRef.get();
-
-    if (!doc.exists) {
-      return res.json({
-        success: true,
-        ingredients: [],
-        notes: '',
-        exists: false
-      });
-    }
-
-    const data = doc.data();
-    res.json({
-      success: true,
-      ingredients: data.ingredients || [],
-      notes: data.notes || '',
-      updated_at: data.updated_at,
-      exists: true
-    });
-
-  } catch (error) {
-    console.error('食材リスト取得エラー:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
-
 export default router;
