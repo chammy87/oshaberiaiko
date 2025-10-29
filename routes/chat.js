@@ -253,4 +253,81 @@ router.post("/:uid/membership", async (req, res) => {
   }
 });
 
+// 食材リストを保存
+router.post('/:uid/ingredients', async (req, res) => {
+  try {
+    const userId = req.params.uid;
+    const { ingredients, notes } = req.body;
+
+    console.log('食材リスト保存:', userId);
+
+    const ingredientsRef = db
+      .collection('conversations')
+      .doc(userId)
+      .collection('ingredients')
+      .doc('current');
+
+    await ingredientsRef.set({
+      ingredients: ingredients || [],
+      notes: notes || '',
+      updated_at: admin.firestore.FieldValue.serverTimestamp(),
+      created_at: admin.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+
+    res.json({
+      success: true,
+      message: '食材リストを保存しました'
+    });
+
+  } catch (error) {
+    console.error('食材リスト保存エラー:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// 食材リストを取得
+router.get('/:uid/ingredients', async (req, res) => {
+  try {
+    const userId = req.params.uid;
+
+    console.log('食材リスト取得:', userId);
+
+    const ingredientsRef = db
+      .collection('conversations')
+      .doc(userId)
+      .collection('ingredients')
+      .doc('current');
+
+    const doc = await ingredientsRef.get();
+
+    if (!doc.exists) {
+      return res.json({
+        success: true,
+        ingredients: [],
+        notes: '',
+        exists: false
+      });
+    }
+
+    const data = doc.data();
+    res.json({
+      success: true,
+      ingredients: data.ingredients || [],
+      notes: data.notes || '',
+      updated_at: data.updated_at,
+      exists: true
+    });
+
+  } catch (error) {
+    console.error('食材リスト取得エラー:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 export default router;
