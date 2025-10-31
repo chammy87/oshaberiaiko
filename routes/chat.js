@@ -256,11 +256,24 @@ router.post("/:uid/membership", async (req, res) => {
 // 食材リストを保存
 router.post('/:uid/ingredients', async (req, res) => {
   try {
-    const db = admin.firestore();  // ← 追加
+    const db = admin.firestore();
     const userId = req.params.uid;
     const { ingredients, notes } = req.body;
 
     console.log('🥬 食材リスト保存:', userId);
+    console.log('📦 受信データ:', { 
+      ingredientsCount: ingredients?.length, 
+      notes: notes 
+    });
+
+    // バリデーション
+    if (!ingredients || !Array.isArray(ingredients)) {
+      console.error('❌ 無効なデータ形式');
+      return res.status(400).json({
+        success: false,
+        error: 'ingredients must be an array'
+      });
+    }
 
     const ingredientsRef = db
       .collection('conversations')
@@ -268,20 +281,26 @@ router.post('/:uid/ingredients', async (req, res) => {
       .collection('ingredients')
       .doc('current');
 
+    console.log('💾 Firestoreに書き込み中...');
+
     await ingredientsRef.set({
-      ingredients: ingredients || [],
+      ingredients: ingredients,
       notes: notes || '',
       updated_at: admin.firestore.FieldValue.serverTimestamp(),
       created_at: admin.firestore.FieldValue.serverTimestamp()
     }, { merge: true });
 
+    console.log('✅ 食材リスト保存成功');
+
     res.json({
       success: true,
-      message: '食材リストを保存しました'
+      message: '食材リストを保存しました',
+      ingredientsCount: ingredients.length
     });
 
   } catch (error) {
     console.error('❌ 食材リスト保存エラー:', error);
+    console.error('エラー詳細:', error.stack);
     res.status(500).json({
       success: false,
       error: error.message
