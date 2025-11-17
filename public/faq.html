@@ -12,11 +12,12 @@
     header{background:var(--soft);padding:20px;text-align:center;border-bottom:1px solid var(--line)}
     header h1{margin:0;font-size:22px;font-weight:700}
     .wrap{max-width:720px;margin:0 auto;padding:16px}
+    .category{font-size:18px;font-weight:700;color:var(--brand);margin:24px 0 12px;padding-bottom:8px;border-bottom:2px solid var(--brand)}
     .faq{border:1px solid var(--line);border-radius:14px;background:var(--card);padding:14px;margin:10px 0}
     .q{font-weight:700;color:var(--brand);margin:0 0 6px}
     .a{margin:0;color:#333;line-height:1.8}
     .muted{color:var(--muted);font-size:14px}
-    .btn{display:inline-block;padding:10px 14px;border-radius:12px;border:1px solid var(--brand);text-decoration:none;font-weight:600}
+    .btn{display:inline-block;padding:10px 14px;border-radius:12px;border:1px solid var(--brand);text-decoration:none;font-weight:600;margin:4px}
     .btn.ghost{color:var(--brand);background:#fff}
     footer{border-top:1px solid var(--line);text-align:center;color:#777;font-size:12px;padding:16px;margin-top:24px}
   </style>
@@ -25,41 +26,120 @@
   <header>
     <h1>よくある質問（FAQ）</h1>
   </header>
-
   <main class="wrap">
+
+    <!-- 基本機能 -->
+    <h2 class="category">📱 基本機能について</h2>
+    
     <section class="faq">
-      <p class="q">無料プランの回数は？</p>
-      <p class="a">1日3回までおしゃべりできます。日付が変わるとカウントがリセットされます。</p>
+      <p class="q">おしゃべりあいこちゃんって何ができるの？</p>
+      <p class="a">子育て中のママ・パパの味方！日常の悩みを聞いてくれるおしゃべり機能、冷蔵庫の写真から食材を認識して献立を提案する機能、買い物リスト作成機能があります。</p>
     </section>
 
     <section class="faq">
-      <p class="q">プレミアムにすると何が変わる？</p>
-      <p class="a">おしゃべりが回数無制限になります。今後、レシピ提案などの追加機能も優先的に提供予定です。</p>
+      <p class="q">無料プランでは何ができる？</p>
+      <p class="a">1日3回までおしゃべりできます。日付が変わるとカウントがリセットされます。献立提案や冷蔵庫スキャンはプレミアム会員限定です。</p>
+    </section>
+
+    <!-- プレミアム機能 -->
+    <h2 class="category">✨ プレミアム機能について</h2>
+
+    <section class="faq">
+      <p class="q">プレミアム会員になると何ができる？</p>
+      <p class="a">
+        ・おしゃべり回数が無制限<br>
+        ・冷蔵庫スキャン（写真から食材を自動認識）<br>
+        ・食材に合わせた献立提案<br>
+        ・買い物リスト自動作成<br>
+        ・食材の追加・削除・修正
+      </p>
+    </section>
+
+    <section class="faq">
+      <p class="q">冷蔵庫スキャンってどう使うの？</p>
+      <p class="a">冷蔵庫の中身の写真を送るだけ！AIが自動で食材を認識してリスト化します。その食材を使った献立も提案してくれます。</p>
+    </section>
+
+    <section class="faq">
+      <p class="q">食材リストを修正したい時は？</p>
+      <p class="a">「卵を追加」「ピーマンを削除」「鶏肉じゃなくて豚肉」のようにメッセージを送ると、食材リストを更新できます。</p>
+    </section>
+
+    <section class="faq">
+      <p class="q">献立提案はどうやって使うの？</p>
+      <p class="a">「献立考えて」「今日の献立教えて」と送ると、冷蔵庫にある食材を使った献立を提案します。材料、分量、調理時間、作り方のポイントまで教えてくれます。</p>
+    </section>
+
+    <section class="faq">
+      <p class="q">買い物リストって何？</p>
+      <p class="a">「買い物リスト作って」と送ると、提案された献立に必要で、冷蔵庫にない食材をリストアップします。お買い物の時に便利です！</p>
+    </section>
+
+    <!-- 料金・契約 -->
+    <h2 class="category">💳 料金・契約について</h2>
+
+    <section class="faq">
+      <p class="q">プレミアムの料金は？</p>
+      <p class="a">月額制のサブスクリプションです。詳しい料金はプレミアム登録ページでご確認ください。</p>
     </section>
 
     <section class="faq">
       <p class="q">登録や解約のタイミングは？</p>
-      <p class="a">いつでも登録・解約できます。解約すると次回の更新以降、プレミアム特典が停止します。</p>
+      <p class="a">いつでも登録・解約できます。解約すると次回の更新日以降、プレミアム特典が停止します。解約後も更新日まではプレミアム機能を利用できます。</p>
+    </section>
+
+    <section class="faq">
+      <p class="q">解約方法は？</p>
+      <p class="a">マイページから「プラン管理」にアクセスし、Stripeのポータルで解約手続きができます。</p>
     </section>
 
     <section class="faq">
       <p class="q">決済についての問い合わせは？</p>
-      <p class="a">不明点があれば <a href="https://forms.gle/TkyfsCn7djdHQ1Cr5" target="_blank" rel="noopener">お問い合わせフォーム</a> からご連絡ください。</p>
+      <p class="a">不明点があれば <a href="https://forms.gle/ZwPU8vnohSjp8j159" target="_blank" rel="noopener">お問い合わせフォーム</a> からご連絡ください。</p>
+    </section>
+
+    <!-- トラブルシューティング -->
+    <h2 class="category">🔧 困った時は</h2>
+
+    <section class="faq">
+      <p class="q">返信が来ない時は？</p>
+      <p class="a">少し時間を置いてから再度お試しください。それでも解決しない場合は、お問い合わせフォームからご連絡ください。</p>
+    </section>
+
+    <section class="faq">
+      <p class="q">冷蔵庫スキャンで食材が正しく認識されない</p>
+      <p class="a">明るい場所で、食材がはっきり見える写真を送ってください。認識が間違っている場合は「〇〇じゃなくて△△」と修正できます。</p>
+    </section>
+
+    <section class="faq">
+      <p class="q">プレミアム登録したのに機能が使えない</p>
+      <p class="a">決済完了後、数分お待ちください。それでも使えない場合は、一度LINEアプリを再起動してお試しください。</p>
+    </section>
+
+    <!-- プライバシー -->
+    <h2 class="category">🔒 プライバシーについて</h2>
+
+    <section class="faq">
+      <p class="q">会話内容は保存される？</p>
+      <p class="a">サービス向上のため、会話履歴は安全に保存されます。個人を特定する情報は厳重に管理しています。</p>
+    </section>
+
+    <section class="faq">
+      <p class="q">冷蔵庫の写真はどうなる？</p>
+      <p class="a">食材認識のために一時的に処理されますが、画像自体は保存されません。認識された食材リストのみ保存されます。</p>
     </section>
 
     <section class="faq">
       <p class="q">個人情報の扱いは？</p>
-      <p class="a">プライバシーポリシーは <a href="https://hypnotic-hovercraft-ef3.notion.site/273e0d29286880db8b70cd2864c4fce8?pvs=73" target="_blank" rel="noopener">こちら</a> をご覧ください。</p>
+      <p class="a">詳しくは <a href="https://hypnotic-hovercraft-ef3.notion.site/273e0d2928688091b851d037b3d09e4b" target="_blank" rel="noopener">プライバシーポリシー</a> をご覧ください。</p>
     </section>
 
-    <div style="margin-top:14px">
+    <div style="margin-top:24px;text-align:center">
       <a class="btn ghost" href="/guide.html">使い方ガイドを見る</a>
-      <a class="btn ghost" href="https://forms.gle/TkyfsCn7djdHQ1Cr5" target="_blank" rel="noopener">お問い合わせ</a>
+      <a class="btn ghost" href="https://forms.gle/ZwPU8vnohSjp8j159" target="_blank" rel="noopener">お問い合わせ</a>
     </div>
-
-    <p class="muted" style="margin-top:10px">※内容は随時アップデートしていきます。</p>
+    <p class="muted" style="margin-top:10px;text-align:center">※内容は随時アップデートしていきます。</p>
   </main>
-
   <footer>© 2025 おしゃべりあいこちゃん</footer>
 </body>
 </html>
