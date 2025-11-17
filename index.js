@@ -241,53 +241,67 @@ async function handleStripeEvent(event) {
       break;
     }
     case "checkout.session.completed": {
-      const session = event.data.object;
-      const userId = session.metadata?.userId;
-      if (userId) {
-        const customerId =
-          typeof session.customer === "string"
-            ? session.customer
-            : session.customer?.id || null;
-        const subscriptionId =
+  const session = event.data.object;
+  const userId = session.metadata?.userId;
+  if (userId) {
+    const customerId =
+      typeof session.customer === "string"
+        ? session.customer
+        : session.customer?.id || null;
+    const subscriptionId =
+      typeof session.subscription === "string"
+        ? session.subscription
+        : session.subscription?.id || null;
+
+    let premiumUntilTs = null;
+    try {
+      if (session.mode === "subscription" && session.subscription) {
+        const sub =
           typeof session.subscription === "string"
-            ? session.subscription
-            : session.subscription?.id || null;
-
-        let premiumUntilTs = null;
-        try {
-          if (session.mode === "subscription" && session.subscription) {
-            const sub =
-              typeof session.subscription === "string"
-                ? await stripe.subscriptions.retrieve(session.subscription)
-                : session.subscription;
-            if (sub?.current_period_end)
-              premiumUntilTs = tsFromSec(sub.current_period_end);
-          }
-        } catch (e) {
-          console.warn("⚠️ subscription取得失敗:", e.message);
-        }
-
-        await db.collection("users").doc(userId).set(
-          {
-            premium: true,
-            premiumSince: admin.firestore.FieldValue.serverTimestamp(),
-            ...(premiumUntilTs ? { premiumUntil: premiumUntilTs } : {}),
-            ...(customerId ? { stripeCustomerId: customerId } : {}),
-            ...(subscriptionId ? { lastSubscriptionId: subscriptionId } : {}),
-            cancelPending: null,
-            cancelAt: null,
-          },
-          { merge: true }
-        );
-        console.log(`✅ checkout.session.completed processed for user=${userId}`);
-
-        await linkRichMenuIdToUser(
-          userId,
-          process.env.RICHMENU_ID_PREMIUM || ""
-        );
+            ? await stripe.subscriptions.retrieve(session.subscription)
+            : session.subscription;
+        if (sub?.current_period_end)
+          premiumUntilTs = tsFromSec(sub.current_period_end);
       }
-      break;
+    } catch (e) {
+      console.warn("⚠️ subscription取得失敗:", e.message);
     }
+
+    await db.collection("users").doc(userId).set(
+      {
+        premium: true,
+        premiumSince: admin.firestore.FieldValue.serverTimestamp(),
+        ...(premiumUntilTs ? { premiumUntil: premiumUntilTs } : {}),
+        ...(customerId ? { stripeCustomerId: customerId } : {}),
+        ...(subscriptionId ? { lastSubscriptionId: subscriptionId } : {}),
+        cancelPending: null,
+        cancelAt: null,
+      },
+      { merge: true }
+    );
+
+    // 🆕 n8n用のmembershipも更新
+    await db
+      .collection("conversations")
+      .doc(userId)
+      .collection("membership")
+      .doc("info")
+      .set({
+        tier: "premium",
+        updated_at: admin.firestore.FieldValue.serverTimestamp(),
+        created_at: admin.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+
+    console.log(`✅ n8n membership updated for user=${userId}`);
+    console.log(`✅ checkout.session.completed processed for user=${userId}`);
+
+    await linkRichMenuIdToUser(
+      userId,
+      process.env.RICHMENU_ID_PREMIUM || ""
+    );
+  }
+  break;
+}
     case "invoice.payment_succeeded": {
       const inv = event.data.object;
       const userId = await resolveUserIdFromInvoice(inv);
