@@ -36,6 +36,26 @@
     td{color:#222}
     .break, .v code, td, .mono{word-break:break-all;overflow-wrap:anywhere}
     .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+    
+    /* 食材リスト用スタイル */
+    .ingredient-list{list-style:none;padding:0;margin:0}
+    .ingredient-item{display:flex;justify-content:space-between;align-items:center;padding:10px;border-bottom:1px solid var(--border);gap:8px}
+    .ingredient-item:last-child{border-bottom:none}
+    .ingredient-info{flex:1}
+    .ingredient-name{font-weight:600;color:#222}
+    .ingredient-qty{color:var(--muted);font-size:13px;margin-left:8px}
+    .ingredient-category{background:#e3f2fd;color:#1565c0;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600}
+    .delete-btn{background:#ffebee;color:#d32f2f;border:none;padding:6px 10px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600}
+    .delete-btn:hover{background:#ffcdd2}
+    .add-form{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+    .add-form input,.add-form select{padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px}
+    .add-form input[type="text"]{flex:1;min-width:120px}
+    .add-form select{min-width:100px}
+    .add-btn{background:var(--brand);color:#fff;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;font-weight:600}
+    .add-btn:hover{opacity:0.9}
+    .empty-message{color:var(--muted);text-align:center;padding:20px;font-size:14px}
+    .refresh-btn{background:#e8f5e9;color:var(--ok);border:none;padding:6px 12px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600}
+    
     @media (max-width:420px){
       th,td{font-size:13px}
       .btn{font-size:14px}
@@ -46,7 +66,6 @@
   (function() {
     const inLINE = /Line\//i.test(navigator.userAgent);
     if (inLINE) {
-      // LIFFがロードされる前に外部ブラウザへ誘導
       const redirectUrl = 'https://www.oshaberiaiko.com/mypage-link.html';
       document.write(`
         <!DOCTYPE html>
@@ -75,7 +94,7 @@
           <script>
             async function openExternal() {
               try {
-                const liffId = '${process.env.LIFF_ID_MYPAGE || process.env.LIFF_ID || ''}';
+                const liffId = '';
                 if (liffId && window.liff) {
                   await liff.init({ liffId });
                   await liff.ready;
@@ -87,10 +106,8 @@
               } catch(e) {
                 console.error('LIFF error:', e);
               }
-              // フォールバック
               window.location.href = '${redirectUrl}';
             }
-            // 自動実行
             setTimeout(openExternal, 500);
           <\/script>
         </body>
@@ -144,6 +161,38 @@
       </div>
       <p class="muted" style="margin-top:8px" id="portalNote">※ 支払い方法の変更、解約/再開、請求履歴の確認ができます。</p>
     </div>
+
+    <!-- 食材リストセクション -->
+    <div class="card" id="ingredientsCard" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+        <h2 style="margin:0;font-size:18px">🥬 冷蔵庫の食材</h2>
+        <button id="refreshIngredients" class="refresh-btn">更新</button>
+      </div>
+      
+      <ul class="ingredient-list" id="ingredientList">
+        <li class="empty-message">読み込み中...</li>
+      </ul>
+      
+      <div class="sep"></div>
+      
+      <h3 style="margin:12px 0 8px;font-size:15px;color:var(--brand)">食材を追加</h3>
+      <div class="add-form">
+        <input type="text" id="newIngredientName" placeholder="食材名" required>
+        <input type="text" id="newIngredientQty" placeholder="数量（任意）">
+        <select id="newIngredientCategory">
+          <option value="野菜">野菜</option>
+          <option value="肉">肉</option>
+          <option value="魚">魚</option>
+          <option value="乳製品">乳製品</option>
+          <option value="果物">果物</option>
+          <option value="調味料">調味料</option>
+          <option value="その他">その他</option>
+        </select>
+        <button id="addIngredient" class="add-btn">追加</button>
+      </div>
+      
+      <p class="muted" style="margin-top:10px">※ LINEで冷蔵庫の写真を送ると自動で食材を認識します</p>
+    </div>
   </main>
 
 <script>
@@ -164,12 +213,13 @@
   };
 
   let currentUserId = null;
+  let currentIdToken = null;
   let running = false;
   let liffInitialized = false;
+  let ingredientsList = [];
 
-  // ループ防止：起動回数を記録（より寛容に）
   const SESSION_KEY = 'mypage_start_count';
-  const MAX_STARTS = 5;  // 3回→5回に増やす
+  const MAX_STARTS = 5;
   
   function checkStartCount() {
     const count = parseInt(sessionStorage.getItem(SESSION_KEY) || '0');
@@ -183,7 +233,6 @@
     return true;
   }
 
-  // クリップボードコピー
   $("#copyUid").addEventListener("click", async ()=>{
     const text = $("#uid")?.textContent?.trim();
     if (!text) return;
@@ -220,7 +269,6 @@
       return null;
     }
 
-    // トークンの有効期限をチェック
     const decoded = liff.getDecodedIDToken();
     if (decoded && decoded.exp) {
       const nowSec = Math.floor(Date.now() / 1000);
@@ -233,15 +281,11 @@
         diff: timeDiff + ' seconds'
       });
       
-      // 有効期限切れ、または30秒以内に切れる場合は再ログイン
       if (timeDiff < 30) {
         console.log('⚠️ Token expired or expiring soon - re-login');
         const redirectUri = location.origin + location.pathname;
-        // ログアウトしてから再ログイン
         try { liff.logout(); } catch(_){}
-        liff.login({ 
-          redirectUri: redirectUri
-        });
+        liff.login({ redirectUri: redirectUri });
         return null;
       }
     }
@@ -283,6 +327,122 @@
     return data.userId;
   }
 
+  // ===== 食材リスト機能 =====
+  async function fetchIngredients(userId) {
+    try {
+      console.log('🥬 食材リスト取得:', userId);
+      
+      const r = await fetch(`/api/chat/${encodeURIComponent(userId)}/ingredients`, {
+        headers: { 
+          'Authorization': `Bearer ${currentIdToken}`,
+          'Content-Type': 'application/json'
+        },
+        cache: 'no-store'
+      });
+      
+      if (!r.ok) {
+        console.error('食材リスト取得失敗:', r.status);
+        return;
+      }
+      
+      const data = await r.json();
+      ingredientsList = data.ingredients || [];
+      
+      renderIngredients();
+      $("#ingredientsCard").style.display = "block";
+      
+    } catch (e) {
+      console.error('食材リスト取得エラー:', e);
+    }
+  }
+
+  function renderIngredients() {
+    const list = $("#ingredientList");
+    
+    if (ingredientsList.length === 0) {
+      list.innerHTML = '<li class="empty-message">食材がまだ登録されていません。<br>LINEで冷蔵庫の写真を送ってみてね！</li>';
+      return;
+    }
+    
+    list.innerHTML = ingredientsList.map((item, index) => `
+      <li class="ingredient-item">
+        <div class="ingredient-info">
+          <span class="ingredient-name">${escapeHtml(item.name)}</span>
+          ${item.quantity ? `<span class="ingredient-qty">${escapeHtml(item.quantity)}</span>` : ''}
+        </div>
+        <span class="ingredient-category">${escapeHtml(item.category || 'その他')}</span>
+        <button class="delete-btn" onclick="window.deleteIngredient(${index})">削除</button>
+      </li>
+    `).join('');
+  }
+
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text || '';
+    return div.innerHTML;
+  }
+
+  window.deleteIngredient = async function(index) {
+    if (!confirm(`「${ingredientsList[index].name}」を削除しますか？`)) return;
+    
+    ingredientsList.splice(index, 1);
+    renderIngredients();
+    await saveIngredients();
+  };
+
+  async function addIngredientHandler() {
+    const name = $("#newIngredientName").value.trim();
+    const qty = $("#newIngredientQty").value.trim();
+    const category = $("#newIngredientCategory").value;
+    
+    if (!name) {
+      alert('食材名を入力してください');
+      return;
+    }
+    
+    ingredientsList.push({
+      name: name,
+      quantity: qty,
+      category: category
+    });
+    
+    renderIngredients();
+    await saveIngredients();
+    
+    $("#newIngredientName").value = '';
+    $("#newIngredientQty").value = '';
+  }
+
+  async function saveIngredients() {
+    if (!currentUserId || !currentIdToken) return;
+    
+    try {
+      console.log('💾 食材リスト保存:', ingredientsList.length, '件');
+      
+      const r = await fetch(`/api/chat/${encodeURIComponent(currentUserId)}/ingredients`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${currentIdToken}`
+        },
+        body: JSON.stringify({
+          ingredients: ingredientsList,
+          notes: ''
+        })
+      });
+      
+      if (!r.ok) {
+        throw new Error('保存失敗: ' + r.status);
+      }
+      
+      console.log('✅ 食材リスト保存完了');
+      
+    } catch (e) {
+      console.error('食材リスト保存エラー:', e);
+      alert('保存に失敗しました。もう一度お試しください。');
+    }
+  }
+
   async function fetchStatus(userId){
     const r = await fetch(`/api/user/${encodeURIComponent(userId)}`, { cache:"no-store" });
     const data = await r.json().catch(()=> ({}));
@@ -299,13 +459,10 @@
     chip.className = "statuschip " + (data.premium ? (data.cancelPending ? "status-warn":"status-ok") : "status-err");
     chip.textContent = data.premium ? (data.cancelPending ? "有効（解約予約あり）" : "有効") : "未契約 / 期限切れ";
 
-    // プレミアム会員かどうかでボタンを切り替え
     if (data.premium) {
-      // プレミアム会員：請求ポータルボタンを表示
       $("#openPortal").style.display = "inline-flex";
       $("#upgradePremium").style.display = "none";
     } else {
-      // 一般会員：プレミアム登録ボタンを表示
       $("#openPortal").style.display = "none";
       $("#upgradePremium").style.display = "inline-flex";
     }
@@ -315,7 +472,9 @@
     $("#reload").style.display = "inline-flex";
     $("#start").style.display = "none";
     
-    // 成功したらカウンターをリセット
+    // 食材リストも取得
+    await fetchIngredients(userId);
+    
     sessionStorage.removeItem(SESSION_KEY);
   }
 
@@ -328,11 +487,8 @@
     console.log('🔄 Opening billing portal for user:', currentUserId);
     
     try {
-      // ポータルURLを取得してから遷移
       const portalUrl = `/billing-portal?userId=${encodeURIComponent(currentUserId)}`;
       console.log('Portal URL:', portalUrl);
-      
-      // 直接遷移
       window.location.href = portalUrl;
     } catch (e) {
       console.error('Portal open error:', e);
@@ -347,8 +503,6 @@
     }
     
     console.log('🔄 Redirecting to premium registration for user:', currentUserId);
-    
-    // プレミアム登録ページへ遷移
     window.location.href = 'https://www.oshaberiaiko.com/pay.html';
   }
 
@@ -356,13 +510,13 @@
     if(running) return;
     running = true;
     
-    // ループ防止チェック
     if (!checkStartCount()) {
       running = false;
       return;
     }
     
     $("#statusCard").style.display = "none";
+    $("#ingredientsCard").style.display = "none";
     $("#reload").style.display = "none";
     $("#start").disabled = true;
     $("#start").textContent = "読み込み中...";
@@ -377,14 +531,14 @@
 
       const idToken = await ensureLogin(useId);
       if(!idToken) {
-        // リダイレクト中
         console.log('🔄 Redirecting to LINE login...');
         return;
       }
 
+      currentIdToken = idToken;
+
       const userId = await resolveUser(idToken);
       if(!userId) {
-        // リダイレクト中
         console.log('🔄 Redirecting after user resolution...');
         return;
       }
@@ -392,7 +546,6 @@
       currentUserId = userId;
       console.log('✅ User ID resolved:', userId);
 
-      // Android対策：タイムアウト付き
       const timeout = new Promise((_,rej)=> 
         setTimeout(()=>rej(new Error('render_timeout')), 10000)
       );
@@ -416,7 +569,6 @@
       const errorMsg = e.message || String(e);
       console.error('Error details:', errorMsg);
       
-      // ユーザーフレンドリーなエラーメッセージ
       let userMsg = "マイページの読み込みに失敗しました。\n\n";
       
       if (errorMsg.includes('exp') || errorMsg.includes('期限')) {
@@ -429,7 +581,6 @@
       
       alert(userMsg);
       
-      // エラー後もボタンを有効化
       $("#start").textContent = "LINEで続ける";
       $("#start").disabled = false;
       
@@ -452,10 +603,17 @@
   });
   $("#openPortal").addEventListener("click", openPortal);
   $("#upgradePremium").addEventListener("click", upgradeToPremium);
+  
+  // 食材リスト用イベントリスナー
+  $("#addIngredient")?.addEventListener("click", addIngredientHandler);
+  $("#refreshIngredients")?.addEventListener("click", () => {
+    if (currentUserId) fetchIngredients(currentUserId);
+  });
+  $("#newIngredientName")?.addEventListener("keypress", (e) => {
+    if (e.key === 'Enter') addIngredientHandler();
+  });
 
-  // 自動開始（1回のみ）
   window.addEventListener("DOMContentLoaded", ()=>{
-    // URLパラメータでループ検出
     const params = new URLSearchParams(location.search);
     if (params.has('retry')) {
       alert('ログインに問題が発生しています。外部ブラウザで開くボタンを押してください。');
