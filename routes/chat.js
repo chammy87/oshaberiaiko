@@ -324,14 +324,22 @@ router.get('/:uid/ingredients', verifyTokenOptional, async (req, res) => {
     const userId = req.params.uid;
 
     console.log('📖 食材リスト取得:', userId);
+    console.log('🔐 認証状態:', req.authenticated ? 'あり' : 'なし');
+    console.log('👤 LINE User ID:', req.lineUserId || 'なし');
 
-    // 認証チェック（マイページからのアクセス）
+    // 認証がある場合のみユーザーID照合
     if (req.authenticated && req.lineUserId && req.lineUserId !== userId) {
       console.error('❌ ユーザーID不一致');
       return res.status(403).json({
         success: false,
         error: 'forbidden'
       });
+    }
+
+    // 認証がない場合も続行（開発中のため）
+    // TODO: 本番環境では認証必須にする
+    if (!req.authenticated) {
+      console.log('⚠️ 認証なしでアクセス（開発中のため許可）');
     }
 
     const ingredientsRef = db
@@ -379,14 +387,20 @@ router.post('/:uid/ingredients', verifyTokenOptional, async (req, res) => {
     const { ingredients, notes } = req.body;
 
     console.log('🥬 食材リスト保存:', userId);
+    console.log('🔐 認証状態:', req.authenticated ? 'あり' : 'なし');
 
-    // 認証チェック（マイページからのアクセス）
+    // 認証がある場合のみユーザーID照合
     if (req.authenticated && req.lineUserId && req.lineUserId !== userId) {
       console.error('❌ ユーザーID不一致');
       return res.status(403).json({
         success: false,
         error: 'forbidden'
       });
+    }
+
+    // 認証がない場合も続行（開発中のため）
+    if (!req.authenticated) {
+      console.log('⚠️ 認証なしでアクセス（開発中のため許可）');
     }
 
     console.log('📦 受信データ:', { 
