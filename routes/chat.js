@@ -1,8 +1,71 @@
 // routes/chat.js
 import express from "express";
 import admin from "firebase-admin";
+import jwt from "jsonwebtoken";
+import jwksClient from "jwks-rsa";
 
 const router = express.Router();
+
+// LINE IDトークン検証用クライアント
+const client = jwksClient({
+  jwksUri: 'https://api.line.me/oauth2/v2.1/certs',
+  cache: true,
+  rateLimit: true
+});
+
+// 公開鍵取得関数
+function getKey(header, callback) {
+  client.getSigningKey(header.kid, (err, key) => {
+    if (err) {
+      callback(err);
+    } else {
+      const signingKey = key.publicKey || key.rsaPublicKey;
+      callback(null, signingKey);
+    }
+  });
+}
+
+// トークン検証ミドルウェア
+const verifyTokenOptional = async (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  const n8nToken = req.headers['x-n8n-token'];
+  
+  // n8nからのリクエストは従来通り許可
+  if (n8nToken === process.env.N8N_SHARED_SECRET) {
+    req.authenticated = true;
+    return next();
+  }
+  
+  // Authorizationヘッダーがない場合はスキップ
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    req.authenticated = false;
+    return next();
+  }
+  
+  const token = authHeader.split(' ')[1];
+  
+  try {
+    // LINE IDトークンを検証
+    const decoded = await new Promise((resolve, reject) => {
+      jwt.verify(token, getKey, {
+        algorithms: ['RS256'],
+        audience: process.env.LINE_LOGIN_CHANNEL_ID,
+        issuer: 'https://access.line.me'
+      }, (err, decoded) => {
+        if (err) reject(err);
+        else resolve(decoded);
+      });
+    });
+    
+    req.authenticated = true;
+    req.lineUserId = decoded.sub;
+    next();
+  } catch (error) {
+    console.error('Token verification failed:', error.message);
+    req.authenticated = false;
+    next();
+  }
+};
 
 // 会話履歴取得
 router.get("/:uid/history", async (req, res) => {
@@ -171,6 +234,7 @@ router.post("/:uid/profile", async (req, res) => {
     res.status(500).json({ error: "internal_server_error" });
   }
 });
+
 // 会員種別取得
 router.get("/:uid/membership", async (req, res) => {
   try {
@@ -191,7 +255,7 @@ router.get("/:uid/membership", async (req, res) => {
       console.log(`ℹ️ No membership found, defaulting to free tier`);
       return res.json({ 
         exists: false, 
-        tier: "free" // デフォルトは一般会員
+        tier: "free"
       });
     }
 
@@ -253,14 +317,78 @@ router.post("/:uid/membership", async (req, res) => {
   }
 });
 
+// 食材リストを取得
+router.get('/:uid/ingredients', verifyTokenOptional, async (req, res) => {
+  try {
+    const db = admin.firestore();
+    const userId = req.params.uid;
+
+    console.log('📖 食材リスト取得:', userId);
+
+    // 認証チェック（マイページからのアクセス）
+    if (req.authenticated && req.lineUserId && req.lineUserId !== userId) {
+      console.error('❌ ユーザーID不一致');
+      return res.status(403).json({
+        success: false,
+        error: 'forbidden'
+      });
+    }
+
+    const ingredientsRef = db
+      .collection('conversations')
+      .doc(userId)
+      .collection('ingredients')
+      .doc('current');
+
+    const doc = await ingredientsRef.get();
+
+    if (!doc.exists) {
+      return res.json({
+        success: true,
+        ingredients: [],
+        notes: '',
+        exists: false
+      });
+    }
+
+    const data = doc.data();
+    res.json({
+      success: true,
+      ingredients: data.ingredients || [],
+      notes: data.notes || '',
+      updated_at: data.updated_at?.toDate
+        ? data.updated_at.toDate().toISOString()
+        : null,
+      exists: true
+    });
+
+  } catch (error) {
+    console.error('❌ 食材リスト取得エラー:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // 食材リストを保存
-router.post('/:uid/ingredients', async (req, res) => {
+router.post('/:uid/ingredients', verifyTokenOptional, async (req, res) => {
   try {
     const db = admin.firestore();
     const userId = req.params.uid;
     const { ingredients, notes } = req.body;
 
     console.log('🥬 食材リスト保存:', userId);
+
+    // 認証チェック（マイページからのアクセス）
+    if (req.authenticated && req.lineUserId && req.lineUserId !== userId) {
+      console.error('❌ ユーザーID不一致');
+      return res.status(403).json({
+        success: false,
+        error: 'forbidden'
+      });
+    }
+
     console.log('📦 受信データ:', { 
       ingredientsCount: ingredients?.length, 
       notes: notes 
@@ -301,51 +429,6 @@ router.post('/:uid/ingredients', async (req, res) => {
   } catch (error) {
     console.error('❌ 食材リスト保存エラー:', error);
     console.error('エラー詳細:', error.stack);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
-
-// 食材リストを取得
-router.get('/:uid/ingredients', async (req, res) => {
-  try {
-    const db = admin.firestore();  // ← 追加
-    const userId = req.params.uid;
-
-    console.log('📖 食材リスト取得:', userId);
-
-    const ingredientsRef = db
-      .collection('conversations')
-      .doc(userId)
-      .collection('ingredients')
-      .doc('current');
-
-    const doc = await ingredientsRef.get();
-
-    if (!doc.exists) {
-      return res.json({
-        success: true,
-        ingredients: [],
-        notes: '',
-        exists: false
-      });
-    }
-
-    const data = doc.data();
-    res.json({
-      success: true,
-      ingredients: data.ingredients || [],
-      notes: data.notes || '',
-      updated_at: data.updated_at?.toDate
-        ? data.updated_at.toDate().toISOString()
-        : null,
-      exists: true
-    });
-
-  } catch (error) {
-    console.error('❌ 食材リスト取得エラー:', error);
     res.status(500).json({
       success: false,
       error: error.message
