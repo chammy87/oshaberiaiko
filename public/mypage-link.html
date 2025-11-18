@@ -66,53 +66,9 @@
   (function() {
     const inLINE = /Line\//i.test(navigator.userAgent);
     if (inLINE) {
-      const redirectUrl = 'https://www.oshaberiaiko.com/mypage-link.html';
-      document.write(`
-        <!DOCTYPE html>
-        <html lang="ja">
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width,initial-scale=1">
-          <title>外部ブラウザで開く</title>
-          <style>
-            body{font-family:sans-serif;text-align:center;padding:40px 20px;background:#f5f7ff}
-            .card{background:#fff;border-radius:14px;padding:24px;max-width:400px;margin:0 auto;box-shadow:0 2px 8px rgba(0,0,0,.1)}
-            h1{font-size:20px;color:#222;margin:0 0 16px}
-            p{color:#636a7a;line-height:1.6;margin:0 0 20px}
-            .btn{display:inline-block;padding:12px 24px;background:#2f6df6;color:#fff;text-decoration:none;border-radius:12px;font-weight:600}
-          </style>
-        </head>
-        <body>
-          <div class="card">
-            <h1>📱 外部ブラウザで開く</h1>
-            <p>マイページは外部ブラウザで開く必要があります。</p>
-            <p>下のボタンをタップしてください。</p>
-            <a href="${redirectUrl}" class="btn" onclick="openExternal(); return false;">Safariで開く</a>
-            <p style="margin-top:16px;font-size:14px;color:#999">※ 自動で開かない場合はボタンをタップ</p>
-          </div>
-          <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"><\/script>
-          <script>
-            async function openExternal() {
-              try {
-                const liffId = '';
-                if (liffId && window.liff) {
-                  await liff.init({ liffId });
-                  await liff.ready;
-                  if (liff.openWindow) {
-                    liff.openWindow({ url: '${redirectUrl}', external: true });
-                    return;
-                  }
-                }
-              } catch(e) {
-                console.error('LIFF error:', e);
-              }
-              window.location.href = '${redirectUrl}';
-            }
-            setTimeout(openExternal, 500);
-          <\/script>
-        </body>
-        </html>
-      `);
+      // LIFFで外部ブラウザを開く
+      const url = 'https://www.oshaberiaiko.com/mypage-link.html';
+      window.location.href = `https://line.me/R/nv/openExternalBrowser?url=${encodeURIComponent(url)}`;
       return;
     }
   })();
