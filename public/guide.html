@@ -14,10 +14,15 @@
     .wrap{max-width:720px;margin:0 auto;padding:16px}
     section{margin:22px 0}
     h2{font-size:18px;margin:10px 0 8px;color:var(--brand)}
+    h3{font-size:16px;margin:12px 0 8px;color:#222}
     p,li{line-height:1.8;font-size:15px}
     ul{margin:8px 0 0 20px;padding:0}
+    ol{margin:8px 0 0 20px;padding:0}
     .card{border:1px solid var(--line);background:var(--card);border-radius:14px;padding:14px}
     .note{background:#f4f6ff;border:1px dashed #cfd7ff;border-radius:10px;padding:12px;color:var(--muted);font-size:14px}
+    .tip-box{background:#fff3e0;border:1px solid #ffb74d;border-radius:10px;padding:12px;margin-top:12px;font-size:14px}
+    .feature-item{display:flex;gap:12px;margin:12px 0;padding:10px;background:#f8f9ff;border-radius:8px}
+    .feature-icon{font-size:24px;flex-shrink:0}
     .btn{display:inline-block;padding:12px 16px;border-radius:12px;border:1px solid var(--brand);text-decoration:none;font-weight:600}
     .btn.brand{background:var(--brand);color:#fff;border-color:var(--brand)}
     .btn.ghost{color:var(--brand);background:#fff}
@@ -54,37 +59,99 @@
     </section>
 
     <section id="menu">
-  <div class="card">
-    <h2>③ 献立提案機能（プレミアム限定✨）</h2>
-    <p>「献立教えて」と送るだけで、あいこちゃんが献立を提案してくれるよ！</p>
-    <ul>
-      <li>家族構成や好みに合わせた提案</li>
-      <li>調理時間の目安も教えてくれる</li>
-      <li>簡単な作り方のポイントも</li>
-    </ul>
-  </div>
-</section>
+      <div class="card">
+        <h2>③ 献立提案機能（プレミアム限定✨）</h2>
+        <p>「献立教えて」と送るだけで、あいこちゃんが献立を提案してくれるよ！</p>
+        <ul>
+          <li>家族構成や好みに合わせた提案</li>
+          <li>調理時間の目安も教えてくれる</li>
+          <li>簡単な作り方のポイントも</li>
+        </ul>
+      </div>
+    </section>
 
-<section id="fridge">
-  <div class="card">
-    <h2>④ 冷蔵庫スキャン機能（プレミアム限定✨）</h2>
-    <p>冷蔵庫の写真を送るだけで、中身を自動認識！</p>
-    <ul>
-      <li>写真から食材を自動で読み取り</li>
-      <li>「鶏肉じゃなくて豚肉ね」で修正も簡単</li>
-      <li>「卵を追加して、献立考えて」で一気に提案</li>
-    </ul>
-    <div class="note">💡 これがあいこちゃんの最大の特徴！冷蔵庫の中身に合わせた献立を自動提案します。</div>
-  </div>
-</section>
+    <section id="fridge">
+      <div class="card">
+        <h2>④ 冷蔵庫スキャン機能（プレミアム限定✨）</h2>
+        <p>冷蔵庫の写真を送るだけで、中身を自動認識！</p>
+        <ul>
+          <li>写真から食材を自動で読み取り</li>
+          <li>「鶏肉じゃなくて豚肉ね」で修正も簡単</li>
+          <li>「卵を追加して、献立考えて」で一気に提案</li>
+        </ul>
+        <div class="note">💡 これがあいこちゃんの最大の特徴！冷蔵庫の中身に合わせた献立を自動提案します。</div>
+      </div>
+    </section>
+
+    <section id="shopping">
+      <div class="card">
+        <h2>⑤ 買い物リスト機能（プレミアム限定✨）</h2>
+        <p>「買い物リスト作って」と送ると、献立に必要で冷蔵庫にない食材をリストアップ！</p>
+        <ul>
+          <li>献立を提案した後に使える</li>
+          <li>スーパーでの買い物がスムーズに</li>
+          <li>買い忘れ防止にも役立つ</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="profile">
+      <div class="card">
+        <h2>⑥ プロフィール設定（おすすめ！）</h2>
+        <h3>プロフィールを設定すると献立がもっと便利に✨</h3>
+        <p>マイページでプロフィールを設定すると、あなたにぴったりの献立を提案できます。</p>
+        
+        <div class="feature-item">
+          <span class="feature-icon">👨‍👩‍👧‍👦</span>
+          <div>
+            <strong>家族構成</strong>
+            <p style="margin:4px 0 0">「大人2人、子供1人（3歳）」など、人数に合わせた分量で提案</p>
+          </div>
+        </div>
+        
+        <div class="feature-item">
+          <span class="feature-icon">🚫</span>
+          <div>
+            <strong>アレルギー・苦手な食材</strong>
+            <p style="margin:4px 0 0">「卵アレルギー」「セロリが苦手」など、避けたい食材を登録</p>
+          </div>
+        </div>
+        
+        <div class="feature-item">
+          <span class="feature-icon">🍜</span>
+          <div>
+            <strong>好きな料理ジャンル</strong>
+            <p style="margin:4px 0 0">「和食」「中華」など、好みの料理を優先的に提案</p>
+          </div>
+        </div>
+        
+        <div class="feature-item">
+          <span class="feature-icon">👨‍🍳</span>
+          <div>
+            <strong>料理スキル</strong>
+            <p style="margin:4px 0 0">「初心者」なら簡単レシピ、「上級」なら本格レシピを提案</p>
+          </div>
+        </div>
+        
+        <div class="tip-box">
+          <strong>📱 設定方法</strong>
+          <ol style="margin:8px 0 0;padding-left:20px">
+            <li>LINEリッチメニューの「マイページ」をタップ</li>
+            <li>下にスクロールして「👤 プロフィール設定」へ</li>
+            <li>各項目を入力して「プロフィールを保存」</li>
+            <li>次回の献立提案から自動で反映されます！</li>
+          </ol>
+        </div>
+      </div>
+    </section>
     
     <section id="premium">
       <div class="card">
-        <h2>⑤ プレミアムでできること</h2>
+        <h2>⑦ プレミアムでできること</h2>
         <ul>
           <li>回数無制限でいつでもおしゃべり</li>
+          <li>冷蔵庫スキャン・献立提案・買い物リスト</li>
           <li>育児・家事の相談をより深くサポート</li>
-          <li>あなたに合わせた応答にチューニング</li>
         </ul>
         <div class="grid" style="margin-top:8px">
           <a class="btn brand" href="/pay.html">プレミアムに登録</a>
@@ -94,12 +161,12 @@
     </section>
 
     <section id="help">
-  <div class="card">
-    <h2>⑥ 困ったときは</h2>
-    <p><a href="/faq.html">FAQ</a> によくある質問をまとめています。解決しない場合は、下記のフォームからお問い合わせください。</p>
-    <p><a class="btn ghost" href="https://forms.gle/ZwPU8vnohSjp8j159" target="_blank" rel="noopener">お問い合わせフォーム</a></p>
-  </div>
-</section>
+      <div class="card">
+        <h2>⑧ 困ったときは</h2>
+        <p><a href="/faq.html">FAQ</a> によくある質問をまとめています。解決しない場合は、下記のフォームからお問い合わせください。</p>
+        <p><a class="btn ghost" href="https://forms.gle/ZwPU8vnohSjp8j159" target="_blank" rel="noopener">お問い合わせフォーム</a></p>
+      </div>
+    </section>
   </main>
 
   <footer>© 2025 おしゃべりあいこちゃん</footer>
