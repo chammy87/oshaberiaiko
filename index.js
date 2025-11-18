@@ -818,8 +818,14 @@ app.post("/api/chat", authenticateN8n, async (req, res) => {
     const { userId, message } = req.body || {};
     if (!userId || !message)
       return res.status(400).json({ error: "missing userId or message" });
+    
     const result = await chatWithAiko({ userId, text: message });
-    if (result.limited) return res.status(429).json(result);
+    
+    // limited の場合も 200 で返す
+    if (result.limited) {
+      return res.status(200).json(result); // 429 ではなく 200
+    }
+    
     return res.json(result);
   } catch (e) {
     console.error("Chat error:", e);
