@@ -61,14 +61,41 @@
       .btn{font-size:14px}
     }
   </style>
+<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <script>
   // LINE内ブラウザの場合は即座に外部ブラウザへリダイレクト
-  (function() {
+  (async function() {
     const inLINE = /Line\//i.test(navigator.userAgent);
     if (inLINE) {
-      // LIFFで外部ブラウザを開く
-      const url = 'https://www.oshaberiaiko.com/mypage-link.html';
-      window.location.href = `https://line.me/R/nv/openExternalBrowser?url=${encodeURIComponent(url)}`;
+      try {
+        const liffId = '2007037024-xJpLqRO4'; // あなたのLIFF ID（マイページ用）
+        await liff.init({ liffId });
+        await liff.ready;
+        
+        const url = 'https://www.oshaberiaiko.com/mypage-link.html';
+        
+        // 外部ブラウザで開く
+        if (liff.isInClient()) {
+          liff.openWindow({
+            url: url,
+            external: true
+          });
+          
+          // フォールバック用メッセージ
+          document.body.innerHTML = `
+            <div style="font-family:sans-serif;text-align:center;padding:60px 20px;background:#f5f7ff">
+              <div style="background:#fff;border-radius:16px;padding:40px 24px;max-width:360px;margin:0 auto;box-shadow:0 4px 12px rgba(0,0,0,0.1)">
+                <h1 style="font-size:24px;color:#222;margin:0 0 16px">📱 外部ブラウザで開いてください</h1>
+                <p style="color:#636a7a;line-height:1.8;margin:0 0 24px">自動で開かない場合は、右上のメニューから「外部ブラウザで開く」を選択してください。</p>
+              </div>
+            </div>
+          `;
+        }
+      } catch (e) {
+        console.error('LIFF error:', e);
+        // エラー時は通常のリダイレクト
+        window.location.href = 'https://www.oshaberiaiko.com/mypage-link.html';
+      }
       return;
     }
   })();
