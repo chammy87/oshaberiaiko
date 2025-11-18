@@ -37,7 +37,7 @@
     .break, .v code, td, .mono{word-break:break-all;overflow-wrap:anywhere}
     .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
     
-    /* 食材リスト用スタイル */
+   /* 食材リスト用スタイル */
     .ingredient-list{list-style:none;padding:0;margin:0}
     .ingredient-item{display:flex;justify-content:space-between;align-items:center;padding:10px;border-bottom:1px solid var(--border);gap:8px}
     .ingredient-item:last-child{border-bottom:none}
@@ -55,6 +55,18 @@
     .add-btn:hover{opacity:0.9}
     .empty-message{color:var(--muted);text-align:center;padding:20px;font-size:14px}
     .refresh-btn{background:#e8f5e9;color:var(--ok);border:none;padding:6px 12px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600}
+    
+    /* プロフィール用スタイル */
+    .profile-section{margin-top:16px}
+    .form-group{margin-bottom:16px}
+    .form-label{display:block;font-weight:600;color:#222;margin-bottom:6px;font-size:14px}
+    .form-input,.form-select,.form-textarea{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit}
+    .form-textarea{min-height:80px;resize:vertical}
+    .form-input:focus,.form-select:focus,.form-textarea:focus{outline:none;border-color:var(--brand)}
+    .save-profile-btn{background:var(--brand);color:#fff;border:none;padding:10px 20px;border-radius:8px;cursor:pointer;font-weight:600;width:100%}
+    .save-profile-btn:hover{opacity:0.9}
+    .save-profile-btn:disabled{opacity:0.5;cursor:not-allowed}
+    .profile-hint{font-size:12px;color:var(--muted);margin-top:4px}
     
     @media (max-width:420px){
       th,td{font-size:13px}
@@ -137,6 +149,55 @@
       
       <p class="muted" style="margin-top:10px">※ LINEで冷蔵庫の写真を送ると自動で食材を認識します</p>
     </div>
+
+    <!-- プロフィールセクション -->
+    <div class="card" id="profileCard" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+        <h2 style="margin:0;font-size:18px">👤 プロフィール設定</h2>
+      </div>
+      
+      <p class="muted" style="margin-top:8px">あなたの情報を登録すると、よりパーソナライズされた献立を提案できます。</p>
+      
+      <div class="profile-section">
+        <div class="form-group">
+          <label class="form-label">家族構成</label>
+          <input type="text" id="householdSize" class="form-input" placeholder="例: 大人2人、子供1人（3歳）">
+          <p class="profile-hint">人数と年齢を教えてください</p>
+        </div>
+        
+        <div class="form-group">
+          <label class="form-label">アレルギー</label>
+          <input type="text" id="allergies" class="form-input" placeholder="例: 卵、乳製品、そば">
+          <p class="profile-hint">該当するアレルギーがあれば入力してください</p>
+        </div>
+        
+        <div class="form-group">
+          <label class="form-label">食事制限・苦手な食材</label>
+          <input type="text" id="dietaryRestrictions" class="form-input" placeholder="例: セロリ、パクチー、辛いもの">
+          <p class="profile-hint">避けたい食材を入力してください</p>
+        </div>
+        
+        <div class="form-group">
+          <label class="form-label">好きな料理ジャンル</label>
+          <input type="text" id="preferredCuisines" class="form-input" placeholder="例: 和食、洋食、中華、イタリアン">
+          <p class="profile-hint">よく作る・食べたい料理のジャンル</p>
+        </div>
+        
+        <div class="form-group">
+          <label class="form-label">料理スキル</label>
+          <select id="cookingSkill" class="form-select">
+            <option value="">選択してください</option>
+            <option value="初心者">初心者（簡単なレシピ希望）</option>
+            <option value="中級">中級（普通のレシピでOK）</option>
+            <option value="上級">上級（本格的なレシピも歓迎）</option>
+          </select>
+        </div>
+        
+        <button id="saveProfile" class="save-profile-btn">プロフィールを保存</button>
+      </div>
+      
+      <p class="muted" style="margin-top:12px">※ 設定した内容は献立提案に反映されます</p>
+    </div>
   </main>
 
 <script>
@@ -161,6 +222,7 @@
   let running = false;
   let liffInitialized = false;
   let ingredientsList = [];
+  let profileData = null;
 
   const SESSION_KEY = 'mypage_start_count';
   const MAX_STARTS = 5;
@@ -168,7 +230,7 @@
   function checkStartCount() {
     const count = parseInt(sessionStorage.getItem(SESSION_KEY) || '0');
     if (count >= MAX_STARTS) {
-      alert('ログインに問題が発生しています。\n\n対処法：\n1. 「外部ブラウザで開く」ボタンを押す\n2. LINEアプリを再起動する\n3. スマホを再起動する');
+      alert('ログインに問題が発生しています。\n\n対処法:\n1. 「外部ブラウザで開く」ボタンを押す\n2. LINEアプリを再起動する\n3. スマホを再起動する');
       $("#start").disabled = true;
       $("#openExternal").style.display = "inline-flex";
       return false;
@@ -177,7 +239,7 @@
     return true;
   }
 
-  $("#copyUid").addEventListener("click", async ()=>{
+  $("#copyUid")?.addEventListener("click", async ()=>{
     const text = $("#uid")?.textContent?.trim();
     if (!text) return;
     try {
@@ -387,6 +449,90 @@
     }
   }
 
+  // ===== プロフィール機能 =====
+  async function fetchProfile(userId) {
+    try {
+      console.log('👤 プロフィール取得:', userId);
+      
+      const r = await fetch(`/api/chat/${encodeURIComponent(userId)}/profile`, {
+        headers: { 
+          'Authorization': `Bearer ${currentIdToken}`,
+          'Content-Type': 'application/json'
+        },
+        cache: 'no-store'
+      });
+      
+      if (!r.ok) {
+        console.error('プロフィール取得失敗:', r.status);
+        return;
+      }
+      
+      const data = await r.json();
+      profileData = data.profile || {};
+      
+      renderProfile();
+      $("#profileCard").style.display = "block";
+      
+    } catch (e) {
+      console.error('プロフィール取得エラー:', e);
+    }
+  }
+
+  function renderProfile() {
+    if (!profileData) return;
+    
+    $("#householdSize").value = profileData.householdSize || '';
+    $("#allergies").value = profileData.allergies || '';
+    $("#dietaryRestrictions").value = profileData.dietaryRestrictions || '';
+    $("#preferredCuisines").value = profileData.preferredCuisines || '';
+    $("#cookingSkill").value = profileData.cookingSkill || '';
+  }
+
+  async function saveProfile() {
+    if (!currentUserId || !currentIdToken) return;
+    
+    const saveBtn = $("#saveProfile");
+    saveBtn.disabled = true;
+    saveBtn.textContent = '保存中...';
+    
+    try {
+      console.log('💾 プロフィール保存:', currentUserId);
+      
+      const profile = {
+        householdSize: $("#householdSize").value.trim(),
+        allergies: $("#allergies").value.trim(),
+        dietaryRestrictions: $("#dietaryRestrictions").value.trim(),
+        preferredCuisines: $("#preferredCuisines").value.trim(),
+        cookingSkill: $("#cookingSkill").value
+      };
+      
+      const r = await fetch(`/api/chat/${encodeURIComponent(currentUserId)}/profile`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${currentIdToken}`
+        },
+        body: JSON.stringify(profile)
+      });
+      
+      if (!r.ok) {
+        throw new Error('保存失敗: ' + r.status);
+      }
+      
+      console.log('✅ プロフィール保存完了');
+      alert('プロフィールを保存しました！\n次回の献立提案に反映されます。');
+      
+      profileData = profile;
+      
+    } catch (e) {
+      console.error('プロフィール保存エラー:', e);
+      alert('保存に失敗しました。もう一度お試しください。');
+    } finally {
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'プロフィールを保存';
+    }
+  }
+
   async function fetchStatus(userId){
     const r = await fetch(`/api/user/${encodeURIComponent(userId)}`, { cache:"no-store" });
     const data = await r.json().catch(()=> ({}));
@@ -418,6 +564,9 @@
     
     // 食材リストも取得
     await fetchIngredients(userId);
+    
+    // プロフィールも取得
+    await fetchProfile(userId);
     
     sessionStorage.removeItem(SESSION_KEY);
   }
@@ -461,6 +610,7 @@
     
     $("#statusCard").style.display = "none";
     $("#ingredientsCard").style.display = "none";
+    $("#profileCard").style.display = "none";
     $("#reload").style.display = "none";
     $("#start").disabled = true;
     $("#start").textContent = "読み込み中...";
@@ -537,16 +687,16 @@
     }
   }
 
-  $("#start").addEventListener("click", startFlow);
-  $("#reload").addEventListener("click", async ()=>{
+  $("#start")?.addEventListener("click", startFlow);
+  $("#reload")?.addEventListener("click", async ()=>{
     if(!currentUserId) return startFlow();
     await fetchStatus(currentUserId);
   });
   $("#reload2")?.addEventListener("click", async ()=>{
     if(currentUserId) await fetchStatus(currentUserId);
   });
-  $("#openPortal").addEventListener("click", openPortal);
-  $("#upgradePremium").addEventListener("click", upgradeToPremium);
+  $("#openPortal")?.addEventListener("click", openPortal);
+  $("#upgradePremium")?.addEventListener("click", upgradeToPremium);
   
   // 食材リスト用イベントリスナー
   $("#addIngredient")?.addEventListener("click", addIngredientHandler);
@@ -556,6 +706,9 @@
   $("#newIngredientName")?.addEventListener("keypress", (e) => {
     if (e.key === 'Enter') addIngredientHandler();
   });
+  
+  // プロフィール用イベントリスナー
+  $("#saveProfile")?.addEventListener("click", saveProfile);
 
   window.addEventListener("DOMContentLoaded", ()=>{
     const params = new URLSearchParams(location.search);
