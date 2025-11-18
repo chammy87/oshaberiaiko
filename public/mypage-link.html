@@ -67,7 +67,20 @@
     const inLINE = /Line\//i.test(navigator.userAgent);
     if (!inLINE) return; // LINE以外なら何もしない
     
-    // シンプルな外部ブラウザ起動メッセージを表示
+    // ページ全体を案内メッセージに置き換え
+    window.addEventListener('DOMContentLoaded', function() {
+      document.body.innerHTML = `
+        <div style="font-family:sans-serif;text-align:center;padding:40px 20px;background:#f5f7ff;margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center">
+          <div style="background:#fff;border-radius:14px;padding:32px 20px;max-width:340px;box-shadow:0 2px 8px rgba(0,0,0,.1)">
+            <h1 style="font-size:20px;color:#222;margin:0 0 16px">📱 外部ブラウザで開く</h1>
+            <p style="color:#636a7a;line-height:1.6;margin:0 0 20px;font-size:15px">マイページは外部ブラウザ（SafariやChrome）で開く必要があります。</p>
+            <p style="font-size:14px;color:#999;margin:0">👆 画面右上のメニュー「⋮」をタップ<br>→「外部ブラウザで開く」を選択</p>
+          </div>
+        </div>
+      `;
+    });
+    
+    // document.writeも念のため実行（早期ブロック用）
     document.write(`
       <!DOCTYPE html>
       <html lang="ja">
@@ -75,19 +88,14 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width,initial-scale=1">
         <title>外部ブラウザで開く</title>
-        <style>
-          body{font-family:sans-serif;text-align:center;padding:40px 20px;background:#f5f7ff;margin:0}
-          .card{background:#fff;border-radius:14px;padding:32px 20px;max-width:340px;margin:0 auto;box-shadow:0 2px 8px rgba(0,0,0,.1)}
-          h1{font-size:20px;color:#222;margin:0 0 16px}
-          p{color:#636a7a;line-height:1.6;margin:0 0 20px;font-size:15px}
-          .btn{display:inline-block;padding:12px 24px;background:#2f6df6;color:#fff;text-decoration:none;border-radius:12px;font-weight:600;margin-top:8px}
-        </style>
       </head>
-      <body>
-        <div class="card">
-          <h1>📱 外部ブラウザで開く</h1>
-          <p>マイページは外部ブラウザ（SafariやChrome）で開く必要があります。</p>
-          <p style="font-size:14px;color:#999">👆 画面右上のメニュー「⋮」をタップ<br>→「外部ブラウザで開く」を選択</p>
+      <body style="margin:0">
+        <div style="font-family:sans-serif;text-align:center;padding:40px 20px;background:#f5f7ff;min-height:100vh;display:flex;align-items:center;justify-content:center">
+          <div style="background:#fff;border-radius:14px;padding:32px 20px;max-width:340px;box-shadow:0 2px 8px rgba(0,0,0,.1)">
+            <h1 style="font-size:20px;color:#222;margin:0 0 16px">📱 外部ブラウザで開く</h1>
+            <p style="color:#636a7a;line-height:1.6;margin:0 0 20px;font-size:15px">マイページは外部ブラウザ（SafariやChrome）で開く必要があります。</p>
+            <p style="font-size:14px;color:#999;margin:0">👆 画面右上のメニュー「⋮」をタップ<br>→「外部ブラウザで開く」を選択</p>
+          </div>
         </div>
       </body>
       </html>
