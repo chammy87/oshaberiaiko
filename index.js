@@ -648,6 +648,38 @@ app.use(express.static("public"));
 app.get("/api/chat/:uid/ingredients", chatRoutes);
 app.post("/api/chat/:uid/ingredients", chatRoutes);
 
+// membership情報取得API（n8n用）← ここに移動！
+app.get("/api/chat/:uid/membership", authenticateN8n, async (req, res) => {
+  try {
+    const userId = req.params.uid;
+    console.log('📊 Membership取得:', userId);
+    
+    const membershipSnap = await db
+      .collection("conversations")
+      .doc(userId)
+      .collection("membership")
+      .doc("info")
+      .get();
+    
+    if (!membershipSnap.exists) {
+      console.log('⚠️ Membership未登録 - regularとして扱う');
+      return res.json({ tier: "regular", exists: false });
+    }
+    
+    const data = membershipSnap.data();
+    console.log('✅ Membership取得成功:', data.tier);
+    
+    return res.json({
+      tier: data.tier || "regular",
+      exists: true,
+      updated_at: data.updated_at
+    });
+  } catch (e) {
+    console.error("❌ membership取得エラー:", e);
+    return res.status(500).json({ error: "internal_error" });
+  }
+});
+
 // その他のChat APIはn8n認証必須
 app.use("/api/chat", authenticateN8n, chatRoutes);
 
