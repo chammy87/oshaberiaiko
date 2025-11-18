@@ -106,6 +106,12 @@ function isPremiumFromData(data) {
 }
 /* ======================== n8n認証ミドルウェア ======================== */
 const authenticateN8n = (req, res, next) => {
+  // 食材APIへのアクセスは認証スキップ
+  if (req.path.includes('/ingredients')) {
+    console.log('⚠️ Ingredients API access - skipping auth');
+    return next();
+  }
+  
   const token = req.headers["x-n8n-token"];
   
   if (!token || token !== process.env.N8N_SHARED_SECRET) {
@@ -638,6 +644,11 @@ app.use((req, res, next) => {
 app.use(express.static("public"));
 
 /* ======================== n8n Chat API ======================== */
+// 食材APIは認証なしで許可（マイページからのアクセスのため）
+app.get("/api/chat/:uid/ingredients", chatRoutes);
+app.post("/api/chat/:uid/ingredients", chatRoutes);
+
+// その他のChat APIはn8n認証必須
 app.use("/api/chat", authenticateN8n, chatRoutes);
 
 /* ======================== 管理用：手動リッチメニュー切替（任意） ======================== */
