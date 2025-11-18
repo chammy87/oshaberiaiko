@@ -63,39 +63,87 @@
   </style>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <script>
-  // LINE内ブラウザの場合は即座に外部ブラウザへリダイレクト
-  (async function() {
+  // LINE内ブラウザの場合はメッセージを表示
+  (function() {
     const inLINE = /Line\//i.test(navigator.userAgent);
     if (inLINE) {
-      try {
-        const liffId = '2008164168-1Zgv69pm'; // あなたのLIFF ID（マイページ用）
-        await liff.init({ liffId });
-        await liff.ready;
-        
-        const url = 'https://www.oshaberiaiko.com/mypage-link.html';
-        
-        // 外部ブラウザで開く
-        if (liff.isInClient()) {
-          liff.openWindow({
-            url: url,
-            external: true
-          });
-          
-          // フォールバック用メッセージ
-          document.body.innerHTML = `
-            <div style="font-family:sans-serif;text-align:center;padding:60px 20px;background:#f5f7ff">
-              <div style="background:#fff;border-radius:16px;padding:40px 24px;max-width:360px;margin:0 auto;box-shadow:0 4px 12px rgba(0,0,0,0.1)">
-                <h1 style="font-size:24px;color:#222;margin:0 0 16px">📱 外部ブラウザで開いてください</h1>
-                <p style="color:#636a7a;line-height:1.8;margin:0 0 24px">自動で開かない場合は、右上のメニューから「外部ブラウザで開く」を選択してください。</p>
-              </div>
+      document.write(`
+        <!DOCTYPE html>
+        <html lang="ja">
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width,initial-scale=1">
+          <title>外部ブラウザで開く</title>
+          <style>
+            body{
+              font-family:sans-serif;
+              margin:0;
+              padding:0;
+              background:#f5f7ff;
+              display:flex;
+              align-items:center;
+              justify-content:center;
+              min-height:100vh;
+            }
+            .card{
+              background:#fff;
+              border-radius:16px;
+              padding:32px 24px;
+              max-width:340px;
+              margin:20px;
+              box-shadow:0 4px 12px rgba(0,0,0,0.1);
+              text-align:center;
+            }
+            h1{
+              font-size:22px;
+              color:#222;
+              margin:0 0 16px;
+            }
+            p{
+              color:#636a7a;
+              line-height:1.8;
+              margin:0 0 20px;
+              font-size:15px;
+            }
+            .steps{
+              background:#f8f9ff;
+              border-radius:12px;
+              padding:16px;
+              text-align:left;
+              margin:20px 0;
+            }
+            .steps ol{
+              margin:0;
+              padding-left:20px;
+            }
+            .steps li{
+              color:#444;
+              line-height:1.8;
+              margin:8px 0;
+            }
+            .icon{
+              font-size:48px;
+              margin-bottom:16px;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="card">
+            <div class="icon">🌐</div>
+            <h1>外部ブラウザで開いてください</h1>
+            <p>マイページは外部ブラウザ（Safari/Chrome）で開く必要があります。</p>
+            <div class="steps">
+              <ol>
+                <li>右上の <strong>「︙」</strong> または <strong>「⋯」</strong> をタップ</li>
+                <li><strong>「他のアプリで開く」</strong> または <strong>「ブラウザで開く」</strong> を選択</li>
+                <li>Safari または Chrome を選択</li>
+              </ol>
             </div>
-          `;
-        }
-      } catch (e) {
-        console.error('LIFF error:', e);
-        // エラー時は通常のリダイレクト
-        window.location.href = 'https://www.oshaberiaiko.com/mypage-link.html';
-      }
+            <p style="font-size:13px;color:#999;margin-top:16px">※ LINEアプリ内では正常に動作しません</p>
+          </div>
+        </body>
+        </html>
+      `);
       return;
     }
   })();
