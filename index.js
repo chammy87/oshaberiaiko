@@ -106,9 +106,9 @@ function isPremiumFromData(data) {
 }
 /* ======================== n8n認証ミドルウェア ======================== */
 const authenticateN8n = (req, res, next) => {
-  // 食材APIへのアクセスは認証スキップ
-  if (req.path.includes('/ingredients')) {
-    console.log('⚠️ Ingredients API access - skipping auth');
+  // 食材APIとプロフィールAPIへのアクセスは認証スキップ
+  if (req.path.includes('/ingredients') || req.path.includes('/profile')) {
+    console.log('⚠️ Ingredients/Profile API access - skipping auth');
     return next();
   }
   
