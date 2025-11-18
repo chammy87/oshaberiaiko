@@ -61,47 +61,6 @@
       .btn{font-size:14px}
     }
   </style>
-<script>
-  // LINE内ブラウザの場合は即座に外部ブラウザへリダイレクト
-  (function() {
-    const inLINE = /Line\//i.test(navigator.userAgent);
-    if (!inLINE) return; // LINE以外なら何もしない
-    
-    // ページ全体を案内メッセージに置き換え
-    window.addEventListener('DOMContentLoaded', function() {
-      document.body.innerHTML = `
-        <div style="font-family:sans-serif;text-align:center;padding:40px 20px;background:#f5f7ff;margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center">
-          <div style="background:#fff;border-radius:14px;padding:32px 20px;max-width:340px;box-shadow:0 2px 8px rgba(0,0,0,.1)">
-            <h1 style="font-size:20px;color:#222;margin:0 0 16px">📱 外部ブラウザで開く</h1>
-            <p style="color:#636a7a;line-height:1.6;margin:0 0 20px;font-size:15px">マイページは外部ブラウザ（SafariやChrome）で開く必要があります。</p>
-            <p style="font-size:14px;color:#999;margin:0">👆 画面右上のメニュー「⋮」をタップ<br>→「外部ブラウザで開く」を選択</p>
-          </div>
-        </div>
-      `;
-    });
-    
-    // document.writeも念のため実行（早期ブロック用）
-    document.write(`
-      <!DOCTYPE html>
-      <html lang="ja">
-      <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width,initial-scale=1">
-        <title>外部ブラウザで開く</title>
-      </head>
-      <body style="margin:0">
-        <div style="font-family:sans-serif;text-align:center;padding:40px 20px;background:#f5f7ff;min-height:100vh;display:flex;align-items:center;justify-content:center">
-          <div style="background:#fff;border-radius:14px;padding:32px 20px;max-width:340px;box-shadow:0 2px 8px rgba(0,0,0,.1)">
-            <h1 style="font-size:20px;color:#222;margin:0 0 16px">📱 外部ブラウザで開く</h1>
-            <p style="color:#636a7a;line-height:1.6;margin:0 0 20px;font-size:15px">マイページは外部ブラウザ（SafariやChrome）で開く必要があります。</p>
-            <p style="font-size:14px;color:#999;margin:0">👆 画面右上のメニュー「⋮」をタップ<br>→「外部ブラウザで開く」を選択</p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `);
-  })();
-</script>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 </head>
 <body>
