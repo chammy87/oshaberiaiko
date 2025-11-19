@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>おしゃべりあいこちゃん 使い方ガイド</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', 'Meiryo', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      padding: 20px;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    
+    .flyer {
+      background: white;
+      max-width: 800px;
+      width: 100%;
+      border-radius: 24px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      overflow: hidden;
+    }
+    
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 40px 30px;
+      text-align: center;
+    }
+    
+    .header h1 {
+      font-size: 32px;
+      margin-bottom: 10px;
+      font-weight: 700;
+    }
+    
+    .header .subtitle {
+      font-size: 16px;
+      opacity: 0.9;
+    }
+    
+    .content {
+      padding: 40px 30px;
+    }
+    
+    .section {
+      margin-bottom: 35px;
+    }
+    
+    .section:last-child {
+      margin-bottom: 0;
+    }
+    
+    .section-title {
+      font-size: 22px;
+      font-weight: 700;
+      color: #667eea;
+      margin-bottom: 15px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .section-title .icon {
+      font-size: 28px;
+    }
+    
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 15px;
+      margin-top: 15px;
+    }
+    
+    .feature-card {
+      background: #f8f9ff;
+      border: 2px solid #e8eaf0;
+      border-radius: 12px;
+      padding: 20px;
+      text-align: center;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    
+    .feature-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 8px 20px rgba(102, 126, 234, 0.2);
+    }
+    
+    .feature-icon {
+      font-size: 36px;
+      margin-bottom: 10px;
+    }
+    
+    .feature-title {
+      font-weight: 700;
+      font-size: 16px;
+      color: #222;
+      margin-bottom: 8px;
+    }
+    
+    .feature-desc {
+      font-size: 13px;
+      color: #636a7a;
+      line-height: 1.6;
+    }
+    
+    .steps {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+    
+    .step {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      background: #f8f9ff;
+      padding: 20px;
+      border-radius: 12px;
+      border-left: 4px solid #667eea;
+    }
+    
+    .step-number {
+      background: #667eea;
+      color: white;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+    
+    .step-text {
+      flex: 1;
+    }
+    
+    .step-title {
+      font-weight: 700;
+      font-size: 16px;
+      color: #222;
+      margin-bottom: 5px;
+    }
+    
+    .step-desc {
+      font-size: 14px;
+      color: #636a7a;
+    }
+    
+    .plan-comparison {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 15px;
+      margin-top: 15px;
+    }
+    
+    .plan-card {
+      background: white;
+      border: 2px solid #e8eaf0;
+      border-radius: 12px;
+      padding: 20px;
+      text-align: center;
+    }
+    
+    .plan-card.premium {
+      border-color: #667eea;
+      background: linear-gradient(135deg, #f8f9ff 0%, #fff 100%);
+    }
+    
+    .plan-badge {
+      display: inline-block;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+    
+    .plan-badge.free {
+      background: #e8eaf0;
+      color: #636a7a;
+    }
+    
+    .plan-badge.premium {
+      background: #667eea;
+      color: white;
+    }
+    
+    .plan-title {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+    
+    .plan-price {
+      font-size: 16px;
+      color: #636a7a;
+      margin-bottom: 15px;
+    }
+    
+    .plan-features {
+      text-align: left;
+      font-size: 14px;
+      line-height: 2;
+    }
+    
+    .plan-features li {
+      list-style: none;
+      padding-left: 20px;
+      position: relative;
+    }
+    
+    .plan-features li:before {
+      content: "✓";
+      position: absolute;
+      left: 0;
+      color: #667eea;
+      font-weight: 700;
+    }
+    
+    .links {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    
+    .link-button {
+      display: block;
+      background: #667eea;
+      color: white;
+      text-decoration: none;
+      padding: 15px 20px;
+      border-radius: 12px;
+      font-weight: 700;
+      text-align: center;
+      transition: background 0.2s;
+    }
+    
+    .link-button:hover {
+      background: #5568d3;
+    }
+    
+    .link-button.secondary {
+      background: white;
+      color: #667eea;
+      border: 2px solid #667eea;
+    }
+    
+    .link-button.secondary:hover {
+      background: #f8f9ff;
+    }
+    
+    .footer {
+      background: #f8f9ff;
+      padding: 20px 30px;
+      text-align: center;
+      color: #636a7a;
+      font-size: 13px;
+    }
+    
+    @media (max-width: 600px) {
+      .plan-comparison {
+        grid-template-columns: 1fr;
+      }
+      
+      .header h1 {
+        font-size: 26px;
+      }
+      
+      .section-title {
+        font-size: 20px;
+      }
+    }
+    
+    @media print {
+      body {
+        background: white;
+        padding: 0;
+      }
+      
+      .flyer {
+        box-shadow: none;
+        max-width: 100%;
+      }
+      
+      .link-button {
+        border: 2px solid #667eea;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="flyer">
+    <!-- ヘッダー -->
+    <div class="header">
+      <h1>🎀 おしゃべりあいこちゃん</h1>
+      <p class="subtitle">育児・家事の相談相手 & 献立アシスタント</p>
+    </div>
+    
+    <!-- コンテンツ -->
+    <div class="content">
+      <!-- できること -->
+      <div class="section">
+        <h2 class="section-title">
+          <span class="icon">✨</span>
+          できること
+        </h2>
+        <div class="feature-grid">
+          <div class="feature-card">
+            <div class="feature-icon">💬</div>
+            <div class="feature-title">育児相談</div>
+            <div class="feature-desc">育児の悩みを気軽に相談できます</div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">📸</div>
+            <div class="feature-title">冷蔵庫スキャン</div>
+            <div class="feature-desc">写真から食材を自動認識</div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">🍽️</div>
+            <div class="feature-title">献立提案</div>
+            <div class="feature-desc">今ある食材で献立を考えます</div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">🛒</div>
+            <div class="feature-title">買い物リスト</div>
+            <div class="feature-desc">足りない食材をリストアップ</div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- 使い方 -->
+      <div class="section">
+        <h2 class="section-title">
+          <span class="icon">📱</span>
+          簡単3ステップ
+        </h2>
+        <div class="steps">
+          <div class="step">
+            <div class="step-number">1</div>
+            <div class="step-text">
+              <div class="step-title">冷蔵庫の写真を送る</div>
+              <div class="step-desc">LINEで冷蔵庫の中の写真を送信</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-number">2</div>
+            <div class="step-text">
+              <div class="step-title">「献立考えて」と送信</div>
+              <div class="step-desc">あいこちゃんに献立を依頼</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-number">3</div>
+            <div class="step-text">
+              <div class="step-title">献立が届く！</div>
+              <div class="step-desc">材料・作り方・調理時間付きで提案</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- プラン比較 -->
+      <div class="section">
+        <h2 class="section-title">
+          <span class="icon">💎</span>
+          料金プラン
+        </h2>
+        <div class="plan-comparison">
+          <div class="plan-card">
+            <div class="plan-badge free">🆓 無料</div>
+            <div class="plan-title">無料プラン</div>
+            <div class="plan-price">0円 / 月</div>
+            <ul class="plan-features">
+              <li>1日3回まで会話</li>
+              <li>育児相談</li>
+              <li>家事の相談</li>
+            </ul>
+          </div>
+          <div class="plan-card premium">
+            <div class="plan-badge premium">✨ おすすめ</div>
+            <div class="plan-title">プレミアム</div>
+            <div class="plan-price">月額400円</div>
+            <ul class="plan-features">
+              <li>回数無制限で会話</li>
+              <li>冷蔵庫スキャン</li>
+              <li>献立提案</li>
+              <li>買い物リスト</li>
+              <li>プロフィール設定</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      
+      <!-- リンク -->
+      <div class="section">
+        <h2 class="section-title">
+          <span class="icon">🔗</span>
+          便利なリンク
+        </h2>
+        <div class="links">
+          <a href="https://www.oshaberiaiko.com/guide.html" class="link-button">
+            📚 詳しい使い方ガイド
+          </a>
+          <a href="https://www.oshaberiaiko.com/mypage-link.html" class="link-button secondary">
+            👤 マイページ（契約状況確認）
+          </a>
+          <a href="https://www.oshaberiaiko.com/faq.html" class="link-button secondary">
+            ❓ よくある質問
+          </a>
+        </div>
+      </div>
+    </div>
+    
+    <!-- フッター -->
+    <div class="footer">
+      <p>気軽に話しかけてね！「こんにちは」「冷蔵庫スキャンして」など、何でもOK 👍</p>
+      <p style="margin-top: 10px;">© 2025 おしゃべりあいこちゃん</p>
+    </div>
+  </div>
+</body>
+</html>
