@@ -144,6 +144,7 @@ async function chatWithAiko({ userId, text }) {
   const usageRef = db.collection("usage_daily").doc(`${userId}_${dayKey}`);
   const LIMIT = 3; // 無料上限
 
+  // 回数制限チェック
   if (!premium) {
     const usageSnap = await usageRef.get();
     const used = usageSnap.exists ? usageSnap.data().count || 0 : 0;
@@ -217,6 +218,7 @@ async function chatWithAiko({ userId, text }) {
     return { reply, premium, limited: false };
   }
 
+  // 回数カウント
   if (!premium) {
     await usageRef.set(
       {
@@ -227,6 +229,33 @@ async function chatWithAiko({ userId, text }) {
       },
       { merge: true }
     );
+  }
+
+  // 🆕 会話履歴を保存
+  try {
+    const messagesRef = db
+      .collection("conversations")
+      .doc(String(userId))
+      .collection("messages");
+
+    // ユーザーのメッセージを保存
+    await messagesRef.add({
+      role: "user",
+      content: text,
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    // AIの返信を保存
+    await messagesRef.add({
+      role: "assistant",
+      content: reply,
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    console.log(`💾 会話履歴保存: userId=${userId}`);
+  } catch (saveError) {
+    console.error("❌ 会話履歴保存エラー:", saveError);
+    // エラーが出ても会話は続行
   }
 
   return { reply, premium, limited: false };
@@ -662,7 +691,7 @@ app.use(express.static("public"));
 app.get("/api/chat/:uid/ingredients", chatRoutes);
 app.post("/api/chat/:uid/ingredients", chatRoutes);
 
-// membership情報取得API（n8n用）← ここに移動！
+// membership情報取得API（n8n用）
 app.get("/api/chat/:uid/membership", authenticateN8n, async (req, res) => {
   try {
     const userId = req.params.uid;
@@ -757,7 +786,6 @@ app.get("/billing-portal", async (req, res) => {
     if (!stripeCustomerId) return res.status(400).send("customer not linked");
 
     const base = process.env.PUBLIC_ORIGIN || "https://www.oshaberiaiko.com";
-    // ★ ここを mypage-link.html に統一
     const session = await stripe.billingPortal.sessions.create({
       customer: stripeCustomerId,
       return_url: `${base}/mypage-link.html?userId=${encodeURIComponent(userId)}`,
@@ -837,7 +865,7 @@ app.post("/api/chat", authenticateN8n, async (req, res) => {
     
     // limited の場合も 200 で返す
     if (result.limited) {
-      return res.status(200).json(result); // 429 ではなく 200
+      return res.status(200).json(result);
     }
     
     return res.json(result);
