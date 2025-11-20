@@ -181,8 +181,22 @@ async function chatWithAiko({ userId, text }) {
         ]
       : null;
 
+  // 一般会員向けの制限プロンプト
+  const limitedSystemPrompt = premium ? aikoSystem : `${aikoSystem}
+
+【重要な制限事項】
+このユーザーは無料プラン（1日3回まで）です。以下の機能は使えません：
+- 冷蔵庫スキャン機能
+- 詳細な買い物リスト作成（具体的な数量や店舗情報を含むもの）
+- プロフィールに基づいた個別カスタマイズ提案
+
+もしユーザーがこれらの機能を求めた場合は、優しく以下のように案内してください：
+「その機能はプレミアム会員限定なんだ✨ 冷蔵庫の中身に合わせた献立や、買い物リストの自動作成ができるよ！もっと便利に使いたい場合は、プレミアムプランを検討してみてね💎」
+
+ただし、一般的な献立のアイデア（「夕飯何がいい？」など）や育児相談には、親身に答えてあげてください。`;
+
   const messages = [
-    { role: "system", content: aikoSystem },
+    { role: "system", content: limitedSystemPrompt },
     ...(opener ? [{ role: "assistant", content: opener }] : []),
     { role: "user", content: text },
   ];
